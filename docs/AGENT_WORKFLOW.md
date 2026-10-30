@@ -14,14 +14,15 @@ Frontend agent: import reply → inspect API details → make any required front
 
 The CLI formats and tracks the handoff. The existing coding agent supplies the reasoning and requirements. It does not start another agent or call an AI API. Documents are not delivered automatically.
 
-工具負責格式、Git 資訊與交接關聯；你正在使用的 coding agent 負責理解程式和判斷需求。**不是工具看見 diff 就能自動知道後端該做什麼。** 下方指引可以放進任務提示詞，或由你加入現有的 agent 專案規範；工具不會自動修改 `AGENTS.md` 等指令檔。
+工具負責格式、Git 資訊與交接關聯；你正在使用的 coding agent 負責理解程式和判斷需求。**不是工具看見 diff 就能自動知道後端該做什麼。** 下方指引可以放進任務提示詞，或由你加入現有的 agent 專案規範；你可執行 `handoff enable`，將精簡版規則加入 agent 指令檔；工具只修改專屬標記區塊，保留其他內容。
 
 ## One-time setup / 一次性準備
 
 1. Install the tool once on each developer's computer. See the README; do not clone the tool into every application repo.
-2. Run handoff commands in the actual application repo. Source identity is automatic; no `init` or recipient setup is needed.
-3. Give the agent the instructions below. It generates an open handoff; whoever imports it in their repo takes it on. Replies automatically reference the original sender.
-4. Only use `--to` or saved target defaults if you explicitly want to restrict the receiving repo.
+2. In each actual application repo, run `handoff enable` (or choose `--agent claude|codex|copilot`). See [setup details](AGENT_SETUP.md).
+3. Start a new agent session or reload project instructions. No `init` or recipient name is required.
+4. Continue normal coding. The installed policy asks for one of: no cross-repo work, work required, or needs confirmation. Only the latter two need a handoff.
+5. The full prompts below are optional references or a fallback for clients that do not load a supported file. They do not need to be pasted for every task after activation.
 
 ## Instructions for a frontend agent
 

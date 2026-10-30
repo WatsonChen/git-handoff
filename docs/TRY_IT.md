@@ -16,9 +16,9 @@ Install the tool in its own folder: [English](../README.md#1-install-the-tool-on
 cd /path/to/frontend-project
 ```
 
-No `init` or recipient setup is needed. The tool detects the source repository; the receiving repo takes on the handoff when importing. Use `handoff info` only to inspect identity.
+Run `handoff enable` once in this application repo and reload the agent instructions (or start a new session). No `init` or recipient setup is needed. The tool detects the source repository; the receiving repo takes on the handoff when importing. Use `handoff info` only to inspect identity.
 
-不用初始化或約定接收方名稱。前端產生檔案，後端在自己的 repo 匯入即可。
+各端在自己的專案執行一次 `handoff enable`，再讓 agent 重新讀取指令。不用初始化或約定接收方名稱。前端產生檔案，後端在自己的 repo 匯入即可。
 
 ## Generate and send / 產生並傳送
 
@@ -78,7 +78,8 @@ Read the received response beneath the original handoff. The original snapshot s
 | File exists / EEXIST | Choose a new `--output` file; generated files are never overwritten. |
 | No meaningful tasks | The agent must analyze requirements and supply `--note`. CLI only extracts added-line TODOs, not semantic requirements. |
 | Reply rejected | Sender identity, original ID, and task IDs/texts must match the saved outgoing document. |
-| No automatic generation or delivery | No completion/push trigger or Telegram API integration is installed. Instruct the agent to generate, then send the file manually. |
+| Agent did not review cross-repo work | Run `agent-status`, check the chosen instruction file, and start a new session/reload instructions. Installation does not prove the agent loaded or followed them. |
+| No automatic delivery | No completion/push trigger or Telegram API integration is installed. The agent generates the file; send it manually. |
 
 ## Feedback / 試用回饋
 

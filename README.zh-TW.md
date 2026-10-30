@@ -1,12 +1,12 @@
 # git-handoff
 
-**把 Git 變動與 agent 整理的跨專案需求，產生成可交給另一端 agent 的 Markdown 文件。**
+**前後端與跨端 AI agent 的交接橋樑：透過可追蹤的 Markdown，共享需求、介面變更與處理結果。**
 
 [English](README.md) | 繁體中文
 
 前端 agent 完工 → 產生 `改動.md` → 你透過 Telegram 傳檔 → 後端 agent 讀取並修改 → 產生 `回覆.md` 傳回。
 
-工程師自己開發也能使用。目前版本 **0.2.2**，尚未發布至 npm。工具在本機執行，不會自行呼叫 AI 或傳送文件。
+工程師自己開發也能使用。目前版本 **0.3.0**，尚未發布至 npm。工具在本機執行，不會自行呼叫 AI 或傳送文件。
 
 ## 哪些內容是自動產生的？
 
@@ -18,7 +18,7 @@
 | 產生 Markdown、交接編號與回覆關聯 | CLI |
 | 核對需求、實作、驗證並明確回報狀態 | 後端 agent，或開發者 |
 
-**CLI 本身還不會推斷 API 需求或判定工作完成。** 但你的 agent 可以自行分析、填入 `--note` 並呼叫工具，不需要你逐條手打。需先在任務或 agent 指令中要求它完工後交接；目前沒有自動偵測 agent 完工或 push 的觸發機制。
+**CLI 本身還不會推斷 API 需求或判定工作完成。** 但你的 agent 可以自行分析、填入 `--note` 並呼叫工具，不需要你逐條手打。在各端專案執行一次 `handoff enable`，即可將跨端檢查規則加入 agent 指令檔。之後讓 agent 重新讀取指令或開啟新對話。這不是完工／push hook，而是由 agent 在任務結束時依規則檢查。
 
 見 [agent 對 agent 的操作指引與可直接使用的提示詞](docs/AGENT_WORKFLOW.md)。
 
@@ -41,6 +41,16 @@ npm link
 ```bash
 cd /你的前端專案路徑
 ```
+
+在實際專案一次性啟用 agent 指引：
+
+```bash
+handoff enable
+```
+
+之後照常請 agent 開發。讀取規則後，它應在任務結束回報 **無需跨端／需要跨端／待確認**：無跨端需求就簡短說明，有需求或問題才整理依據、驗收條件並產生交接，不必每次再貼整段提示詞。
+
+`enable` 會沿用既有根目錄指令檔，沒有時建立 `AGENTS.md`；也可用 `--agent codex`、`--agent claude`、`--agent copilot` 指定工具。完整啟用、確認與停用方式見 [一次性設定指南](docs/AGENT_SETUP.md)。
 
 **不用 init，不用指定自己，也不用設定接收方。** 工具自動從 Git remote 辨識來源，沒有可用 remote 時使用資料夾名稱。預設是未指定對象的交接，由匯入文件的專案接手；只有想檢查目前辨識結果時才需要 `handoff info`。
 
@@ -88,6 +98,8 @@ handoff generate --to Example/shop-api --lang en --note "明確的需求" --outp
 
 | 指令 | 功能 |
 | --- | --- |
+| `enable`／`disable` | 安裝或移除專案中的 handoff agent 指引區塊 |
+| `agent-status` | 檢查指引區塊是否已安裝 |
 | `info` | 查看真正操作的 repo、來源辨識方式與預設接收方 |
 | `init` | 儲存預設值；需要別名時才用 `--project` |
 | `generate` | 根據指定 Git 範圍與明確需求產生交接 |
@@ -138,6 +150,6 @@ npm run check
 npm test
 ```
 
-[回報問題](https://github.com/WatsonChen/git-handoff/issues/new/choose) · [貢獻說明](CONTRIBUTING.md) · [Roadmap](docs/ROADMAP.md)
+[回報問題](https://github.com/WatsonChen/git-handoff/issues/new/choose) · [貢獻說明](CONTRIBUTING.md) · [Roadmap](docs/ROADMAP.md) · [修改紀錄](CHANGELOG.md)
 
 目前尚未選定開源授權。

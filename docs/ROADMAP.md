@@ -6,6 +6,8 @@ This is a proposed sequence, not a delivery schedule.
 
 ## Implemented in the local CLI
 
+- One-time `enable`/`disable`/`agent-status` commands with managed instruction blocks and backups.
+- A shared three-outcome review: no cross-repo work, work required, needs confirmation.
 - Automatic source identity from Git remotes; optional one-time defaults and manual aliases.
 - Git comparison modes and explicit task extraction.
 - Versioned handoff data, Markdown rendering, and JSON export.

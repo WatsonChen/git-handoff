@@ -1,7 +1,7 @@
 {
   "name": "git-handoff",
-  "version": "0.2.2",
-  "description": "Generate Markdown handoffs from Git changes and agent-supplied tasks across frontend and backend repositories",
+  "version": "0.3.0",
+  "description": "A Markdown handoff bridge for frontend, backend, and cross-platform AI agents",
   "type": "module",
   "bin": {
     "handoff": "bin/handoff.js"
@@ -13,7 +13,8 @@
     "README.zh-TW.md",
     "CONTRIBUTING.md",
     "examples",
-    "docs"
+    "docs",
+    "CHANGELOG.md"
   ],
   "engines": {
     "node": ">=22.18.0"

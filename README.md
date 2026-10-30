@@ -1,6 +1,6 @@
 # git-handoff
 
-**Turn Git changes and an agent's follow-up requirements into Markdown handoffs across repositories.**
+**A bridge between frontend, backend, and cross-platform agents: share requirements, interface changes, and results through traceable Markdown.**
 
 [![CI](https://github.com/WatsonChen/git-handoff/actions/workflows/ci.yml/badge.svg)](https://github.com/WatsonChen/git-handoff/actions/workflows/ci.yml)
 
@@ -8,7 +8,7 @@ English | [繁體中文](README.zh-TW.md)
 
 Frontend agent finishes → produces `改動.md` → you send it through Telegram → backend agent reads it, implements changes, and produces `回覆.md`.
 
-Engineers can use the same workflow directly. This local CLI does not call an AI service or send documents automatically. **Current version: 0.2.2; not yet published to npm.**
+Engineers can use the same workflow directly. This local CLI does not call an AI service or send documents automatically. **Current version: 0.3.0; not yet published to npm.**
 
 ## What is automatic?
 
@@ -20,7 +20,7 @@ Engineers can use the same workflow directly. This local CLI does not call an AI
 | Create Markdown with source metadata, task IDs, and reply references | CLI |
 | Read requirements, implement them, and explicitly report status | Your backend agent, or you |
 
-The CLI does **not** infer API contracts, explain code semantics, or decide that a task is done. An agent can supply the required context through `--note`, so you do not need to type each task manually. That agent must be instructed to create a handoff at the end of its work; no completion or push trigger is installed.
+The CLI does **not** infer API contracts, explain code semantics, or decide that a task is done. An agent can supply the required context through `--note`, so you do not need to type each task manually. Run `handoff enable` once in each application repo to install the cross-repository review policy in its agent instructions. Start a new agent session or reload those instructions. No completion or push hook is installed; the agent performs the review as part of its task.
 
 See the [agent-to-agent workflow and ready-to-use instructions](docs/AGENT_WORKFLOW.md).
 
@@ -43,6 +43,16 @@ npm link
 ```bash
 cd /path/to/your/frontend-project
 ```
+
+Enable the agent policy once in that application repo:
+
+```bash
+handoff enable
+```
+
+Then continue normal coding with an agent that loads that instruction file. At task completion it is instructed to report one result: **no cross-repo work**, **work required**, or **needs confirmation**. For required work or questions, it should prepare a handoff with evidence and acceptance criteria; no file is needed for unrelated work. You do not need to repeat the handoff prompt every task once the policy is loaded.
+
+`enable` reuses an existing root instruction file, or creates `AGENTS.md`. For a specific client use `--agent codex`, `--agent claude`, or `--agent copilot`. See [setup, status, and removal](docs/AGENT_SETUP.md).
 
 No `init`, source project name, or recipient setup is required. The source is detected from the Git remote (folder name as a fallback). By default the handoff is open: the repository that imports it takes it on. Use `handoff info` only if you want to check the detected source.
 
@@ -90,6 +100,8 @@ handoff generate --to Example/shop-api --lang en --note "Explicit requirement" -
 
 | Command | Purpose |
 | --- | --- |
+| `enable` / `disable` | Install or remove the managed project-level agent policy |
+| `agent-status` | Check whether the policy block is installed |
 | `info` | Show the actual repo, identity source, and configured recipients |
 | `init` | Save defaults; optionally set a manual identity alias |
 | `generate` | Create a handoff from the selected Git comparison and explicit notes |
@@ -140,7 +152,7 @@ npm run check
 npm test
 ```
 
-[Report an issue](https://github.com/WatsonChen/git-handoff/issues/new/choose) · [Contributing](CONTRIBUTING.md) · [Roadmap](docs/ROADMAP.md)
+[Report an issue](https://github.com/WatsonChen/git-handoff/issues/new/choose) · [Contributing](CONTRIBUTING.md) · [Roadmap](docs/ROADMAP.md) · [Changelog](CHANGELOG.md)
 
 ## License
 

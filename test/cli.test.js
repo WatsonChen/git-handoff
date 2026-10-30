@@ -440,3 +440,92 @@ test('replies must always have one explicit recipient even when the original was
   assert.equal(front.run('import', join(front.cwd, 'bad-reply.json')).status, 1);
   assert.equal(state(front, document.id).responses.length, 0);
 });
+
+import { readdirSync, symlinkSync } from 'node:fs';
+
+test('enable installs a one-time cross-repo review policy and is idempotent', t => {
+  const repo = fixture(t);
+  const first = repo.run('enable');
+  assert.equal(first.status, 0, first.stderr);
+  const path = join(repo.cwd, 'AGENTS.md');
+  const policy = readFileSync(path, 'utf8');
+  assert.match(policy, /No cross-repo work/);
+  assert.match(policy, /Cross-repo work required/);
+  assert.match(policy, /Needs confirmation/);
+  assert.match(policy, /--note/);
+  assert.match(policy, /file\/line evidence/);
+  assert.match(policy, /does not infer requirements or wake other agents/);
+  assert.match(repo.run('agent-status').stdout, /Enabled/);
+  assert.match(repo.run('enable').stdout, /Already enabled/);
+  assert.equal(readFileSync(path, 'utf8'), policy);
+  assert.equal(existsSync(join(repo.cwd, '.git-handoff/instruction-backups')), false);
+  assert.equal(existsSync(join(repo.cwd, 'handoff.config.json')), false);
+});
+
+test('enable preserves existing rules, backs them up, and disable restores them exactly', t => {
+  const repo = fixture(t);
+  const path = join(repo.cwd, 'AGENTS.md');
+  const original = '# Team rules\n\nUse existing tests.\nKeep private files local.';
+  writeFileSync(path, original);
+  assert.equal(repo.run('enable').status, 0);
+  const updated = readFileSync(path, 'utf8');
+  assert.ok(updated.startsWith(original));
+  const folder = join(repo.cwd, '.git-handoff/instruction-backups');
+  const backups = readdirSync(folder);
+  assert.equal(backups.length, 1);
+  assert.equal(readFileSync(join(folder, backups[0]), 'utf8'), original);
+  assert.equal(repo.run('disable').status, 0);
+  assert.equal(readFileSync(path, 'utf8'), original);
+  assert.match(repo.run('agent-status').stdout, /Not enabled/);
+  assert.match(repo.run('disable').stdout, /Not enabled/);
+});
+
+test('explicit adapters target Claude/Copilot files and respect Codex override precedence', t => {
+  const repo = fixture(t);
+  writeFileSync(join(repo.cwd, 'AGENTS.md'), '# Shared instructions\n');
+  writeFileSync(join(repo.cwd, 'AGENTS.override.md'), '# Codex-specific instructions\n');
+  assert.equal(repo.run('enable', '--agent', 'codex').status, 0);
+  assert.match(readFileSync(join(repo.cwd, 'AGENTS.override.md'), 'utf8'), /git-handoff:begin/);
+  assert.equal(readFileSync(join(repo.cwd, 'AGENTS.md'), 'utf8'), '# Shared instructions\n');
+  assert.equal(repo.run('enable', '--agent', 'claude').status, 0);
+  assert.match(readFileSync(join(repo.cwd, 'CLAUDE.md'), 'utf8'), /git-handoff:begin/);
+  assert.equal(repo.run('enable', '--agent', 'copilot').status, 0);
+  assert.match(readFileSync(join(repo.cwd, '.github/copilot-instructions.md'), 'utf8'), /git-handoff:begin/);
+  assert.match(repo.run('agent-status', '--agent', 'copilot').stdout, /Enabled/);
+  assert.equal(repo.run('enable', '--agent', 'unknown').status, 1);
+});
+
+test('auto setup reuses existing agent files and removes only its managed block', t => {
+  const repo = fixture(t);
+  const path = join(repo.cwd, 'CLAUDE.md');
+  writeFileSync(path, '# Existing Claude policy\n');
+  assert.equal(repo.run('enable').status, 0);
+  assert.equal(existsSync(join(repo.cwd, 'AGENTS.md')), false);
+  writeFileSync(path, readFileSync(path, 'utf8') + '\n## Added later\nKeep this rule.\n');
+  assert.equal(repo.run('disable').status, 0);
+  const remaining = readFileSync(path, 'utf8');
+  assert.match(remaining, /Existing Claude policy/);
+  assert.match(remaining, /Keep this rule/);
+  assert.doesNotMatch(remaining, /git-handoff:begin/);
+});
+
+test('setup refuses malformed markers and symlink targets without changing unrelated files', t => {
+  const repo = fixture(t);
+  const path = join(repo.cwd, 'AGENTS.md');
+  const broken = '# Keep this\n<!-- git-handoff:begin -->\nunfinished';
+  writeFileSync(path, broken);
+  assert.equal(repo.run('enable').status, 1);
+  assert.equal(repo.run('disable').status, 1);
+  assert.equal(readFileSync(path, 'utf8'), broken);
+  rmSync(path);
+  const outside = fixture(t);
+  const target = join(outside.cwd, 'unrelated.md');
+  writeFileSync(target, 'Do not change this.');
+  symlinkSync(target, path);
+  assert.equal(repo.run('enable', '--agent', 'generic').status, 1);
+  assert.equal(readFileSync(target, 'utf8'), 'Do not change this.');
+  rmSync(path);
+  symlinkSync(outside.cwd, join(repo.cwd, '.github'));
+  assert.equal(repo.run('enable', '--agent', 'copilot').status, 1);
+  assert.equal(existsSync(join(outside.cwd, 'copilot-instructions.md')), false);
+});

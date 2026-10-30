@@ -4,6 +4,7 @@ import { resolve, dirname, relative, isAbsolute, sep } from 'node:path';
 import { newId, overall, render, taskStatuses, validate, type Handoff, type Language, type TaskStatus } from './document.ts';
 import { Store, entry, readDocument } from './store.ts';
 import { identify, type Identity } from './identity.ts';
+import { agentSetup } from './agent-setup.ts';
 
 function git(args: string[], cwd = process.cwd()): string {
   try {
@@ -33,6 +34,9 @@ function configAt(path: string): Config {
 const help = `git-handoff — cross-repository handoff checklists / 跨 repo 交接工具
 
 handoff info
+handoff enable [--agent auto|generic|codex|claude|copilot]
+handoff disable [--agent auto|generic|codex|claude|copilot]
+handoff agent-status [--agent auto|generic|codex|claude|copilot]
 handoff init [--to owner/shop-api] [--lang en|zh-TW] [--project alias | --auto-project]
 handoff generate [--to owner/shop-api] [--base main | --staged]
                  [--note "Confirm API fields"] [--output path] [--lang en|zh-TW]
@@ -49,6 +53,8 @@ Source project is detected from its Git remote. init is optional, saves defaults
 and preserves unspecified settings when run again. --project is an optional alias.
 Recipients are optional: without --to or saved targets, any repo can import the handoff.
 工具只需安裝一次；切換至實際專案操作，自動辨識來源。init 選用，不必每次執行。
+enable installs one-time project guidance: no cross-repo work / work required / needs confirmation.
+啟用後請讓 agent 重新讀取專案指令；不是 push hook，也不會喚醒另一端的 agent。
 Default diff: HEAD to working tree (tracked files). Stage new files first.
 --base: merge base to HEAD (committed changes only); --staged: index only.
 Documents are shared manually. No remote integrations or AI calls.
@@ -114,8 +120,12 @@ function printInfo(root: string, config: Config, identity: Identity): void {
 export function main(args: string[]): void {
   const command = args.shift();
   if (!command || command === '--help' || command === '-h') { console.log(help); return; }
-  if (!['info', 'init', 'generate', 'import', 'list', 'show', 'update', 'reply', 'export'].includes(command)) throw new Error(`Unknown command: ${command}`);
+  if (!['info', 'enable', 'disable', 'agent-status', 'init', 'generate', 'import', 'list', 'show', 'update', 'reply', 'export'].includes(command)) throw new Error(`Unknown command: ${command}`);
   const root = git(['rev-parse', '--show-toplevel']).trim();
+  if (command === 'enable' || command === 'disable' || command === 'agent-status') {
+    const opts = options(args, ['--agent']);
+    agentSetup(root, command, one(opts, '--agent') ?? 'auto'); return;
+  }
   const configPath = resolve(root, 'handoff.config.json');
   const config = configAt(configPath);
   if (command === 'init') {
