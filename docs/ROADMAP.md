@@ -6,6 +6,7 @@ This is a proposed sequence, not a delivery schedule.
 
 ## Implemented in the local CLI
 
+- Automatic source identity from Git remotes; optional one-time defaults and manual aliases.
 - Git comparison modes and explicit task extraction.
 - Versioned handoff data, Markdown rendering, and JSON export.
 - Recipient-checked import and duplicate detection.
@@ -15,13 +16,14 @@ This is a proposed sequence, not a delivery schedule.
 
 ## Current priority: correct Markdown and clear instructions
 
-- Validate the full file exchange with frontend/backend collaborators.
+- Validate the full file exchange with frontend/backend agents and developers.
+- Keep agent reasoning separate from CLI extraction: agents supply requirements, evidence, and acceptance criteria.
 - Compare generated files/tasks against the requested Git comparison mode.
 - Keep observed changes, developer-supplied requirements, and unresolved questions distinct.
 - Improve error messages and instructions based on actual trial feedback.
 - Share documents manually through the conversation tools collaborators already use, including Telegram.
 
-Use the [trial guide](TRY_IT.md). Clear usage documentation is the adoption priority; a demo video is not required.
+Use the [agent instructions](AGENT_WORKFLOW.md) and [trial guide](TRY_IT.md). Clear usage documentation is the adoption priority; a demo video is not required.
 
 ## Later: more useful handoff content
 

@@ -58,7 +58,7 @@ test('base mode uses committed branch changes and ignores working tree', t => {
 test('init, config defaults, clean tree and invalid arguments', t => {
   const { cwd, run } = fixture(t);
   assert.equal(run('init').status, 0);
-  assert.equal(run('init').status, 1);
+  assert.equal(run('init').status, 0);
   assert.equal(run('generate', '--to', 'api').status, 1);
   assert.equal(run('generate', '--to').status, 1);
   assert.equal(run('generate', '--base', 'main', '--staged', '--to', 'api').status, 1);
@@ -280,4 +280,97 @@ test('deleted and binary files are listed without inventing tasks', t => {
   const doc = parseDocument(readFileSync(output, 'utf8'));
   assert.deepEqual(doc.files, ['binary.dat', 'delete.ts']);
   assert.deepEqual(doc.tasks, []);
+});
+
+import { repositoryLabel } from '../src/identity.ts';
+
+test('canonical remote identity supports HTTPS, SSH, ports, groups and excludes credentials', () => {
+  for (const remote of [
+    'https://github.com/WatsonChen/shop-web.git',
+    'https://user:secret@github.com/WatsonChen/shop-web.git/',
+    'git@github.com:WatsonChen/shop-web.git',
+    'ssh://git@github.com:2222/WatsonChen/shop-web.git',
+    'git://github.com/WatsonChen/shop-web',
+  ]) assert.equal(repositoryLabel(remote), 'WatsonChen/shop-web');
+  assert.equal(repositoryLabel('git@gitlab.com:team/subgroup/api.git'), 'team/subgroup/api');
+  for (const remote of ['/tmp/backend.git', '../backend.git', 'C:\\repos\\backend.git', 'file:///tmp/backend.git', 'not-a-url', 'https://github.com/only-owner', 'ext::helper /repo.git']) {
+    assert.equal(repositoryLabel(remote), undefined, remote);
+  }
+});
+
+test('source identity is automatic with or without init, including from a subdirectory', t => {
+  const repo = fixture(t);
+  repo.git('remote', 'add', 'origin', 'https://user:secret@github.com/Example/shop-web.git');
+  const info = repo.run('info');
+  assert.equal(info.status, 0, info.stderr);
+  assert.match(info.stdout, /Example\/shop-web/);
+  assert.doesNotMatch(info.stdout, /secret|user:/);
+  assert.equal(existsSync(join(repo.cwd, 'handoff.config.json')), false);
+  writeFileSync(join(repo.cwd, 'api.ts'), '// TODO: verify endpoint\n');
+  const output = join(repo.cwd, 'without-init.md');
+  assert.equal(repo.run('generate', '--to', 'Example/shop-api', '--output', output).status, 0);
+  assert.equal(parseDocument(readFileSync(output, 'utf8')).from, 'Example/shop-web');
+  assert.equal(repo.run('init', '--to', 'Example/shop-api', '--to', 'Example/mobile', '--lang', 'en').status, 0);
+  const config = JSON.parse(readFileSync(join(repo.cwd, 'handoff.config.json'), 'utf8'));
+  assert.equal(config.project, undefined);
+  assert.deepEqual(config.targets, ['Example/shop-api', 'Example/mobile']);
+  mkdirSync(join(repo.cwd, 'nested'));
+  const result = spawnSync(process.execPath, [cli, 'generate', '--output', 'nested.md'], { cwd: join(repo.cwd, 'nested'), encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
+  const doc = parseDocument(readFileSync(join(repo.cwd, 'nested/nested.md'), 'utf8'));
+  assert.equal(doc.from, 'Example/shop-web');
+  assert.deepEqual(doc.to, ['Example/shop-api', 'Example/mobile']);
+});
+
+test('repeat init preserves unspecified settings; explicit aliases survive until --auto-project', t => {
+  const repo = fixture(t);
+  repo.git('remote', 'add', 'origin', 'git@github.com:Example/web.git');
+  repo.run('init', '--project', 'legacy-web', '--to', 'legacy-api', '--lang', 'en');
+  const path = join(repo.cwd, 'handoff.config.json');
+  const before = JSON.parse(readFileSync(path, 'utf8'));
+  before.output = 'custom-handoffs';
+  writeFileSync(path, JSON.stringify(before));
+  assert.equal(repo.run('init').status, 0);
+  assert.deepEqual(JSON.parse(readFileSync(path, 'utf8')), before);
+  assert.match(repo.run('info').stdout, /legacy-web/);
+  assert.equal(repo.run('init', '--auto-project').status, 0);
+  const after = JSON.parse(readFileSync(path, 'utf8'));
+  assert.equal(after.project, undefined);
+  assert.equal(after.output, 'custom-handoffs');
+  assert.deepEqual(after.targets, ['legacy-api']);
+  assert.match(repo.run('info').stdout, /Example\/web/);
+  assert.equal(repo.run('init', '--project', 'alias', '--auto-project').status, 1);
+  assert.equal(repo.run('init', '--to', 'new-api').status, 0);
+  assert.deepEqual(JSON.parse(readFileSync(path, 'utf8')).targets, ['new-api']);
+});
+
+test('identity selection uses origin, then a sole remote, otherwise the folder', t => {
+  const repo = fixture(t);
+  const fallback = repo.cwd.split(/[\\/]/).at(-1);
+  assert.match(repo.run('info').stdout, new RegExp(fallback));
+  repo.git('remote', 'add', 'upstream', 'git@gitlab.com:team/api.git');
+  assert.match(repo.run('info').stdout, /team\/api/);
+  repo.git('remote', 'add', 'backup', 'https://github.com/other/api.git');
+  assert.match(repo.run('info').stdout, new RegExp(fallback));
+  repo.git('remote', 'add', 'origin', 'https://github.com/Example/web.git');
+  assert.match(repo.run('info').stdout, /Example\/web/);
+  repo.git('remote', 'set-url', 'origin', '/tmp/local-repo.git');
+  assert.match(repo.run('info').stdout, new RegExp(fallback));
+});
+
+test('two repositories with HTTPS/SSH identities exchange documents without init or manual source labels', t => {
+  const front = fixture(t), back = fixture(t);
+  front.git('remote', 'add', 'origin', 'https://github.com/Example/web.git');
+  back.git('remote', 'add', 'origin', 'git@github.com:Example/api.git');
+  writeFileSync(join(front.cwd, 'api.ts'), '// changed\n');
+  const source = join(front.cwd, 'handoff.md');
+  assert.equal(front.run('generate', '--to', 'Example/api', '--note', 'Confirm API', '--output', source).status, 0);
+  const doc = parseDocument(readFileSync(source, 'utf8'));
+  assert.equal(back.run('import', source).status, 0);
+  assert.equal(back.run('update', doc.id, '--task', 'TASK-001', '--status', 'done').status, 0);
+  const reply = join(back.cwd, 'reply.md');
+  assert.equal(back.run('reply', doc.id, '--output', reply).status, 0);
+  assert.equal(parseDocument(readFileSync(reply, 'utf8')).from, 'Example/api');
+  assert.equal(front.run('import', reply).status, 0);
+  assert.equal(state(front, doc.id).responses[0].status, 'completed');
 });

@@ -1,8 +1,9 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { resolve, basename, dirname, relative, isAbsolute, sep } from 'node:path';
+import { resolve, dirname, relative, isAbsolute, sep } from 'node:path';
 import { newId, overall, render, taskStatuses, validate, type Handoff, type Language, type TaskStatus } from './document.ts';
-import { Store, entry, readDocument, fingerprint } from './store.ts';
+import { Store, entry, readDocument } from './store.ts';
+import { identify, type Identity } from './identity.ts';
 
 function git(args: string[], cwd = process.cwd()): string {
   try {
@@ -31,8 +32,9 @@ function configAt(path: string): Config {
 }
 const help = `git-handoff — cross-repository handoff checklists / 跨 repo 交接工具
 
-handoff init [--project shop-web] [--lang en|zh-TW]
-handoff generate [--to shop-api] [--base main | --staged]
+handoff info
+handoff init [--to owner/shop-api] [--lang en|zh-TW] [--project alias | --auto-project]
+handoff generate [--to owner/shop-api] [--base main | --staged]
                  [--note "Confirm API fields"] [--output path] [--lang en|zh-TW]
 handoff import <file.md|file.json>
 handoff list
@@ -42,6 +44,10 @@ handoff reply <handoff-id> [--note "API details"] [--output path] [--lang en|zh-
 handoff export <handoff-id> --format json|markdown --output path
 
 Task states: pending, in-progress, done, blocked, needs-clarification.
+Install this tool once; run commands inside the repo whose changes you want.
+Source project is detected from its Git remote. init is optional, saves defaults,
+and preserves unspecified settings when run again. --project is an optional alias.
+工具只需安裝一次；切換至實際專案操作，自動辨識來源。init 選用，不必每次執行。
 Default diff: HEAD to working tree (tracked files). Stage new files first.
 --base: merge base to HEAD (committed changes only); --staged: index only.
 Documents are shared manually. No remote integrations or AI calls.
@@ -94,22 +100,40 @@ function quotePath(path: string): string {
   return Buffer.concat(buffers).toString('utf8');
 }
 
+function printInfo(root: string, config: Config, identity: Identity): void {
+  console.log([
+    `Repository / 目前操作的 repo: ${root}`,
+    `Project / 專案識別: ${identity.project}`,
+    `Identity source / 辨識來源: ${identity.source}`,
+    `Recipients / 預設接收方: ${config.targets?.join(', ') || '(not set / 未設定；generate 時指定 --to)'}`,
+    `Language / 文件語言: ${config.language ?? 'zh-TW'}`,
+  ].join('\n'));
+}
+
 export function main(args: string[]): void {
   const command = args.shift();
   if (!command || command === '--help' || command === '-h') { console.log(help); return; }
-  if (!['init', 'generate', 'import', 'list', 'show', 'update', 'reply', 'export'].includes(command)) throw new Error(`Unknown command: ${command}`);
+  if (!['info', 'init', 'generate', 'import', 'list', 'show', 'update', 'reply', 'export'].includes(command)) throw new Error(`Unknown command: ${command}`);
   const root = git(['rev-parse', '--show-toplevel']).trim();
   const configPath = resolve(root, 'handoff.config.json');
-  if (command === 'init') {
-    const opts = options(args, ['--project', '--lang']);
-    const project = one(opts, '--project') ?? basename(root);
-    if (!project.trim() || /[\r\n\0]/.test(project)) throw new Error('Invalid project label.');
-    const lang = language(one(opts, '--lang'));
-    writeFileSync(configPath, JSON.stringify({ project, targets: [], output: 'handoffs', language: lang }, null, 2) + '\n', { flag: 'wx' });
-    console.log(`Created / 已建立: ${configPath}`); return;
-  }
   const config = configAt(configPath);
-  const project = config.project ?? basename(root);
+  if (command === 'init') {
+    const opts = options(args, ['--to', '--project', '--auto-project', '--lang'], ['--auto-project']);
+    if (opts.has('--project') && opts.has('--auto-project')) throw new Error('--project and --auto-project cannot be combined.');
+    const next: Config = { targets: [], output: 'handoffs', language: 'zh-TW', ...config };
+    if (opts.has('--project')) next.project = one(opts, '--project');
+    if (opts.has('--auto-project')) delete next.project;
+    if (opts.has('--to')) next.targets = [...new Set(opts.get('--to'))];
+    if (opts.has('--lang')) next.language = language(one(opts, '--lang'));
+    if ((next.project !== undefined && (!next.project.trim() || /[\r\n\0]/.test(next.project))) || next.targets?.some(t => !t.trim() || /[\r\n\0]/.test(t))) throw new Error('Invalid project or recipient label.');
+    // Avoid pinning automatic detection to the machine's folder name or a stale remote value.
+    writeFileSync(configPath, JSON.stringify(next, null, 2) + '\n');
+    console.log(`Configured / 已設定: ${configPath}`);
+    printInfo(root, next, identify(root, next.project)); return;
+  }
+  const identity = identify(root, config.project);
+  const project = identity.project;
+  if (command === 'info') { options(args, []); printInfo(root, config, identity); return; }
   const store = new Store(root);
   const outputRoot = resolve(root, config.output ?? 'handoffs');
   const lang = language(config.language);
@@ -168,7 +192,7 @@ export function main(args: string[]): void {
   if (command === 'import') {
     options(args, []);
     const { document, fingerprint: digest } = readDocument(resolve(idOrPath));
-    if (!document.to.includes(project)) throw new Error(`Recipient mismatch: this repo is ${project}; document is addressed to ${document.to.join(', ')}. Set config.project to the agreed repo label.`);
+    if (!document.to.includes(project)) throw new Error(`Recipient mismatch: this repo is ${project}; document is addressed to ${document.to.join(', ')}. Run handoff info in the receiving repo and use that exact identity in the sender's --to. For an existing alias-based exchange, use handoff init --project <alias>.`);
     const existing = store.get(document.id);
     if (existing) {
       if (existing.fingerprint !== digest) throw new Error('Same document ID has different content. Ask the sender to generate a new document.');

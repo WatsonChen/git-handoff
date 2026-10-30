@@ -21,7 +21,7 @@ npm test
 node bin/handoff.js --help
 ```
 
-`src/cli.ts` handles commands, `src/document.ts` handles the shared data model and Markdown, and `src/store.ts` handles local records. `test/cli.test.js` uses temporary Git repositories, including frontend/backend round trips. Do not use real project repositories as destructive test fixtures.
+`src/cli.ts` handles commands, `src/document.ts` handles the shared data model and Markdown, and `src/store.ts` handles local records. `src/identity.ts` normalizes hosted remote identities without network calls. `test/cli.test.js` uses temporary Git repositories, including frontend/backend round trips. Do not use real project repositories as destructive test fixtures.
 
 Keep changes focused. Update both READMEs when behavior changes, and add a meaningful integration test for changes to Git comparison or document generation.
 

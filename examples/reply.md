@@ -1,23 +1,23 @@
 ---
 schema_version: 1
 kind: "reply"
-id: "hf-20261030-a7672d39"
-from: "shop-api"
-to: ["shop-web"]
-reply_to: "hf-20261030-0daf7414"
-source_commit: "3521d55cd5530d7b671c8f12b4430ef53d6bc0b9"
+id: "hf-20261030-11a30658"
+from: "Example/shop-api"
+to: ["Example/shop-web"]
+reply_to: "hf-20261030-eac31e7b"
+source_commit: "468a054082901505fdda31b9a2a328f2befe2a19"
 comparison: "reply snapshot at HEAD"
 status: "needs-clarification"
-created_at: "2026-10-30T02:01:25.339Z"
+created_at: "2026-10-30T03:00:14.859Z"
 language: "zh-TW"
 files: []
-tasks: [{"id":"TASK-001","text":"確認註冊 API 的請求、回應與錯誤欄位","status":"done","note":"已完成 POST /api/register；請求包含 email、password，成功回傳 userId。"},{"id":"TASK-002","text":"TODO: agree on duplicate email response (src/register.ts:2)","status":"needs-clarification","note":"Email 重複是否統一回傳 HTTP 409？"}]
-notes: ["請確認前端的重複 Email 錯誤處理。"]
+tasks: [{"id":"TASK-001","text":"需求：提供 POST /api/register；依據：src/register.ts:2 的呼叫；請求：email、password；驗收：成功與重複 Email 回應經雙方確認；待確認：成功回應是否包含 userId","status":"done","note":"示範回覆：已提供 POST /api/register，成功回應包含 userId。"},{"id":"TASK-002","text":"TODO: agree on duplicate email response (src/register.ts:3)","status":"needs-clarification","note":"待確認：重複 Email 是否回傳 HTTP 409？"}]
+notes: ["請前端確認實際回應欄位與錯誤處理。"]
 ---
 
 # 交接回覆
 
-原始交接: hf-20261030-0daf7414
+原始交接: hf-20261030-eac31e7b
 
 ## 本次改動
 
@@ -25,14 +25,14 @@ notes: ["請確認前端的重複 Email 錯誤處理。"]
 
 ## 待處理
 
-- [x] [TASK-001] 確認註冊 API 的請求、回應與錯誤欄位 (done)
-  - 已完成 POST /api/register；請求包含 email、password，成功回傳 userId。
-- [ ] [TASK-002] TODO: agree on duplicate email response (src/register.ts:2) (needs-clarification)
-  - Email 重複是否統一回傳 HTTP 409？
+- [x] [TASK-001] 需求：提供 POST /api/register；依據：src/register.ts:2 的呼叫；請求：email、password；驗收：成功與重複 Email 回應經雙方確認；待確認：成功回應是否包含 userId (done)
+  - 示範回覆：已提供 POST /api/register，成功回應包含 userId。
+- [ ] [TASK-002] TODO: agree on duplicate email response (src/register.ts:3) (needs-clarification)
+  - 待確認：重複 Email 是否回傳 HTTP 409？
 
 ## 補充與待確認
 
-- 請確認前端的重複 Email 錯誤處理。
+- 請前端確認實際回應欄位與錯誤處理。
 
 ## 來源與編輯方式
 

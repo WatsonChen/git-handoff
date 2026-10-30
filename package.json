@@ -1,7 +1,7 @@
 {
   "name": "git-handoff",
-  "version": "0.2.0",
-  "description": "Generate Markdown handoff checklists from Git diffs for frontend, backend, and multi-repository teams",
+  "version": "0.2.1",
+  "description": "Generate Markdown handoffs from Git changes and agent-supplied tasks across frontend and backend repositories",
   "type": "module",
   "bin": {
     "handoff": "bin/handoff.js"

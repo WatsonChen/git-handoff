@@ -1,79 +1,98 @@
 # Frontend/backend trial / 前後端試用
 
-Use regular chat to exchange the generated files. Telegram integration is not needed. Replace `<id>` with the original ID printed by `generate`; do not type the angle brackets literally.
+Follow [agent instructions](AGENT_WORKFLOW.md) if coding agents do the work. The commands below also work for engineers directly. Use Telegram to send files manually.
 
-透過一般對話傳送檔案即可。`<id>` 代表 `generate` 顯示的原始交接編號，請替換整段內容，不要照打角括號。
+若由 AI agent 開發，請把 [agent 操作指引](AGENT_WORKFLOW.md) 給它；下列指令也適用於工程師直接操作。文件透過 Telegram 手動傳送。
 
-## Before starting / 試用前
+## Once per computer / 每台電腦安裝一次
 
-- Both developers install the tool: follow the [English](../README.md#install-from-source) or [中文](../README.zh-TW.md#安裝) instructions.
-- Both repositories need Git and at least one commit.
-- Agree on labels: frontend `shop-web`, backend `shop-api`. Labels are case-sensitive.
-- `init` runs once. For an existing config, edit its `project` and `language` fields instead.
+Install the tool in its own folder: [English](../README.md#1-install-the-tool-once-per-machine) / [中文](../README.zh-TW.md#1-工具每台電腦安裝一次). Do not clone the tool into each application repository.
 
-## Frontend / 前端
+工具只需裝一次。**操作交接時，要離開工具目錄，切換到真正的前端或後端 repo。**
 
-Run inside the frontend project after making a real change:
+## Identify both application repos / 確認雙方 repo
+
+Run this in the actual frontend and backend project directories:
 
 ```bash
-handoff init --project shop-web --lang zh-TW
-handoff generate --to shop-api --note "確認這次 API 的請求、回應與錯誤格式"
+handoff info
 ```
 
-1. Read `handoffs/<id>/改動.md`: does it list the right files and tasks? Compare the requested mode with `git diff HEAD`, `git diff --cached`, or `git diff main...HEAD` as appropriate.
-2. Ensure the explicit note contains enough information for the backend. It becomes `TASK-001`.
-3. Send the `.md` file through Telegram. Keep the frontend `.git-handoff/` records.
+The frontend might show `Example/shop-web`; the backend might show `Example/shop-api`. Use the exact backend identity as the frontend's recipient. Source identities are automatic; you do not have to name your current project.
 
-閱讀產出，確認檔名、待辦與實際變動一致，再把 `.md` 傳給後端。請保留本機紀錄，以便接收回覆。
+前後端各執行一次，把後端顯示的專案識別給前端。來源專案自動辨識，不必再手動指定自己。
 
-## Backend / 後端
-
-Run inside the backend project:
+## Frontend setup / 前端儲存預設值（選用，一次即可）
 
 ```bash
-handoff init --project shop-api --lang zh-TW
+cd /path/to/frontend-project
+handoff init --to Example/shop-api --lang zh-TW
+```
+
+`init` saves defaults. You do not run it for every task; repeated runs preserve unspecified values. Without it, add `--to Example/shop-api` to `generate`.
+
+## Generate and send / 產生並傳送
+
+After making a real change, the agent or developer runs:
+
+```bash
+handoff generate --note "需求、實際程式依據、API 欄位、驗收條件與待確認事項"
+```
+
+- For committed task changes, use `--base <actual-start-ref>`; for uncommitted tracked changes use the default; for staging only use `--staged`.
+- Stage new files first according to your workflow. A clean working tree has no default changes even after a successful push.
+- Read `handoffs/<id>/改動.md`. Compare files against `git diff HEAD`, `git diff --cached`, or `git diff <start>...HEAD`, matching the selected mode.
+- Check that tasks contain enough context for a backend agent without access to the frontend repo. TODOs alone are not the full analysis.
+- Send the `.md` file. Preserve frontend `.git-handoff/` records.
+
+`<id>` means the actual original handoff ID printed by generation. Replace the full placeholder; do not type angle brackets literally.
+
+## Backend work and reply / 後端處理與回覆
+
+Inside the backend project, **no init is required** for automatic source identity and import:
+
+```bash
+cd /path/to/backend-project
+handoff info
 handoff import /path/to/改動.md
-handoff list
 handoff show <id>
 ```
 
-After implementing and verifying the work:
+Implement and verify the agreed work. Update each original task explicitly:
 
 ```bash
-handoff update <id> --task TASK-001 --status done --note "說明實際 API、欄位、錯誤格式與驗證結果"
-handoff reply <id> --note "說明前端接下來需要配合的事項"
+handoff update <id> --task TASK-001 --status done --note "實際 API、欄位、錯誤格式與驗證結果"
+handoff reply <id> --note "前端需配合的變動與剩餘問題"
 ```
 
-If blocked or unclear, use `--status blocked` or `--status needs-clarification` instead of `done`. Update every relevant task separately; only the first explicit note is guaranteed to be `TASK-001` in this example.
+Use `blocked` or `needs-clarification` if needed. The first explicit frontend note is `TASK-001`; use `show` for other IDs. Send `handoffs/<reply-id>/回覆.md` back. Replies identify HEAD but do not attach code diffs or include uncommitted work.
 
-Send `handoffs/<reply-id>/回覆.md` back. Commit code first if the reply's HEAD should point to that implementation. Replies do not automatically include backend code changes.
-
-## Frontend receives the reply / 前端接收回覆
+## Frontend reads the reply / 前端查看回覆
 
 ```bash
 handoff import /path/to/回覆.md
 handoff show <id>
 ```
 
-Check the backend's status and notes under received replies. The original task snapshot remains unchanged, so distinguish it from the recipient's response.
+Read the received response beneath the original handoff. The original snapshot stays unchanged; recipients' replies are separate.
 
 ## Troubleshooting / 常見問題
 
-| Message / 問題 | What to check / 處理方式 |
+| Problem | What to check |
 | --- | --- |
-| No changes | New files require `git add`. `--base` only includes commits. Default mode needs changes relative to HEAD. |
-| Recipient mismatch | Set backend `config.project` to the exact label used by frontend `--to`. Do not edit the received file. |
+| Wrong files or project identity | Run `info` and confirm you are in the application repo, not the tool clone. |
+| No changes | Stage new files. If changes are committed, choose their actual start with `--base`; push alone does not create a working-tree diff. |
+| Recipient mismatch | Ask the backend to run `info`, then use that exact identity in the frontend's `--to`. Do not edit the received file. |
+| Old configured alias | Keep it during existing exchanges, or use `init --auto-project` for future exchanges and update recipient defaults accordingly. |
 | Already imported | Expected for duplicates. Local task progress is preserved. |
-| Unknown handoff | Use `list` in the right repo. Preserve `.git-handoff/`; import the original handoff before replying. |
-| File exists / EEXIST | Pick a new `--output` path. Existing files are never overwritten. |
-| No tasks | Supply `--note` when generating; unchanged TODOs are not extracted. Generate a new handoff rather than editing the old one. |
-| Reply rejected | The sender, original ID, and full set of task IDs/texts must match the saved outgoing handoff. |
-| Nothing sent to Telegram | Expected. Send the generated file yourself. |
+| Unknown handoff | Check `list` in the right repo and preserve `.git-handoff/`. Import the original before replying. |
+| File exists / EEXIST | Choose a new `--output` file; generated files are never overwritten. |
+| No meaningful tasks | The agent must analyze requirements and supply `--note`. CLI only extracts added-line TODOs, not semantic requirements. |
+| Reply rejected | Sender identity, original ID, and task IDs/texts must match the saved outgoing document. |
+| No automatic generation or delivery | No completion/push trigger or Telegram API integration is installed. Instruct the agent to generate, then send the file manually. |
 
-## Useful feedback / 試用後最有用的回饋
+## Feedback / 試用回饋
 
-- Which changed file or new TODO was missing or incorrect?
-- Could the backend act on the note without asking for context?
-- Did the reply clearly identify completed work and unresolved questions?
+Did the source identity match the right repo? Were the Git files and task evidence correct? Could the backend agent implement the task from the document? Did the reply make outcomes and questions clear?
 
-可在 [Issues](https://github.com/WatsonChen/git-handoff/issues/new/choose) 回報，附上去識別化的指令、預期輸出與實際輸出。不要附私有程式碼或機密資訊。
+[Report an issue](https://github.com/WatsonChen/git-handoff/issues/new/choose) with sanitized commands and expected/actual output.

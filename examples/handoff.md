@@ -1,16 +1,16 @@
 ---
 schema_version: 1
 kind: "handoff"
-id: "hf-20261030-0daf7414"
-from: "shop-web"
-to: ["shop-api"]
-source_commit: "3521d55cd5530d7b671c8f12b4430ef53d6bc0b9"
+id: "hf-20261030-eac31e7b"
+from: "Example/shop-web"
+to: ["Example/shop-api"]
+source_commit: "468a054082901505fdda31b9a2a328f2befe2a19"
 comparison: "HEAD to working tree"
 status: "pending"
-created_at: "2026-10-30T02:01:24.902Z"
+created_at: "2026-10-30T03:00:14.471Z"
 language: "zh-TW"
 files: ["src/register.ts"]
-tasks: [{"id":"TASK-001","text":"確認註冊 API 的請求、回應與錯誤欄位","status":"pending"},{"id":"TASK-002","text":"TODO: agree on duplicate email response (src/register.ts:2)","status":"pending"}]
+tasks: [{"id":"TASK-001","text":"需求：提供 POST /api/register；依據：src/register.ts:2 的呼叫；請求：email、password；驗收：成功與重複 Email 回應經雙方確認；待確認：成功回應是否包含 userId","status":"pending"},{"id":"TASK-002","text":"TODO: agree on duplicate email response (src/register.ts:3)","status":"pending"}]
 notes: []
 ---
 
@@ -22,8 +22,8 @@ notes: []
 
 ## 待處理
 
-- [ ] [TASK-001] 確認註冊 API 的請求、回應與錯誤欄位 (pending)
-- [ ] [TASK-002] TODO: agree on duplicate email response (src/register.ts:2) (pending)
+- [ ] [TASK-001] 需求：提供 POST /api/register；依據：src/register.ts:2 的呼叫；請求：email、password；驗收：成功與重複 Email 回應經雙方確認；待確認：成功回應是否包含 userId (pending)
+- [ ] [TASK-002] TODO: agree on duplicate email response (src/register.ts:3) (pending)
 
 ## 補充與待確認
 

@@ -1,162 +1,152 @@
 # git-handoff
 
-**把 Git 變動整理成 Markdown 交接清單，讓不同 Repository 的開發者交換待辦與處理結果。**
+**把 Git 變動與 agent 整理的跨專案需求，產生成可交給另一端 agent 的 Markdown 文件。**
 
 [English](README.md) | 繁體中文
 
-前端產生 `.md` → 透過 Telegram 等對話框傳給後端 → 後端匯入並更新待辦 → 產生回覆 `.md` 傳回。
+前端 agent 完工 → 產生 `改動.md` → 你透過 Telegram 傳檔 → 後端 agent 讀取並修改 → 產生 `回覆.md` 傳回。
 
-目前是 **0.2 CLI MVP**，可在本機完成上述流程，不需要 AI 帳號，不會自動傳送任何文件。尚未發布至 npm。
+工程師自己開發也能使用。目前版本 **0.2.1**，尚未發布至 npm。工具在本機執行，不會自行呼叫 AI 或傳送文件。
 
-## 現在可以做什麼
+## 哪些內容是自動產生的？
 
-| 指令 | 功能 |
+| 工作 | 負責者 |
 | --- | --- |
-| `init` | 設定這個 repo 的專案名稱與文件語言 |
-| `generate` | 列出 Git 變動檔案，擷取新增行的 TODO/FIXME 與自訂待辦 |
-| `import` | 匯入收到的交接或回覆，檢查接收對象並依 ID 去重 |
-| `list`／`show` | 查詢本機紀錄、待辦與收到的回覆 |
-| `update` | 明確更新收到的待辦狀態及說明 |
-| `reply` | 產生對應原始交接與待辦編號的回覆文件 |
-| `export` | 將原始文件匯出為 Markdown 或 JSON |
+| 辨識目前是哪個專案 | CLI，讀取 Git remote |
+| 擷取變動檔案、新增行的 TODO/FIXME | CLI |
+| 判斷後端需要補什麼、整理依據與驗收條件 | 前端 agent，或開發者 |
+| 產生 Markdown、交接編號與回覆關聯 | CLI |
+| 核對需求、實作、驗證並明確回報狀態 | 後端 agent，或開發者 |
 
-**目前不會自動解釋程式碼語意、推斷 API 需求或判定工作完成。**「改動摘要」是檔案清單；待辦來自 `--note` 與新增行中的 TODO/FIXME。API 欄位、錯誤格式、驗收條件請用 `--note` 明確補充。
+**CLI 本身還不會推斷 API 需求或判定工作完成。** 但你的 agent 可以自行分析、填入 `--note` 並呼叫工具，不需要你逐條手打。需先在任務或 agent 指令中要求它完工後交接；目前沒有自動偵測 agent 完工或 push 的觸發機制。
 
-## 安裝
+見 [agent 對 agent 的操作指引與可直接使用的提示詞](docs/AGENT_WORKFLOW.md)。
 
-雙方都需要 Git、Node.js 22.18 以上：
+## 1. 工具每台電腦安裝一次
+
+需要 Git 與 Node.js 22.18 以上。把工具放在獨立的工具目錄，不必在每個前後端專案各 clone 一份：
 
 ```bash
+# 先切換到你放工具的位置，再執行
 git clone https://github.com/WatsonChen/git-handoff.git
 cd git-handoff
 npm ci
 npm link
 ```
 
-之後在一般 clone 的工具目錄內執行 `git pull --ff-only` 與 `npm ci` 可更新。若不使用 `npm link`，可用 `node /工具的絕對路徑/bin/handoff.js` 代替 `handoff`。
+`npm link` 讓其他資料夾也能使用 `handoff`。這裡 clone 的是工具原始碼，**不是要被分析的前端或後端專案**。之後更新工具時，在這個一般 clone 內執行 `git pull --ff-only` 與 `npm ci`。
 
-## 前端交接給後端，再接收回覆
-
-### 1. 前端產生交接
-
-在前端專案內操作，該 repo 需至少有一個 commit：
+## 2. 切換到真正要交接的專案
 
 ```bash
-# 初始化只需執行一次；名稱需與接收方約定一致
-handoff init --project shop-web --lang zh-TW
-
-# 先完成程式改動；新檔案請先 git add
-handoff generate --to shop-api --note "確認註冊 API 的請求、回應與錯誤欄位"
+cd /你的前端專案路徑
+handoff info
 ```
 
-指令會顯示交接編號與 `handoffs/<交接編號>/改動.md` 的路徑。將 `.md` 透過 Telegram 傳給後端。上述備註是 `TASK-001`，擷取到的 TODO 會接在後面。
+`info` 會顯示目前 repo 根目錄與辨識出的名稱，例如 `Example/shop-web`，方便確認操作位置。
 
-### 2. 後端匯入、處理並回覆
+工具優先讀 `origin`；沒有 `origin` 時，使用唯一的 remote。HTTPS、SSH 會得到相同的 `owner/repo` 名稱。沒有可用 remote，或多個 remote 無法決定時，才使用資料夾名稱。這些資訊只讀取本機 Git 設定，不會連線伺服器。
 
-在後端專案內操作：
+**不必再用 `--project` 指定自己。** 後端也可以在自己的 repo 執行 `handoff info`，把顯示的名稱給前端當接收方。
+
+## 3. 儲存預設接收方，選用且只需設定一次
 
 ```bash
-handoff init --project shop-api --lang zh-TW
+# Example/shop-api 是對方，不是你目前所在的專案
+handoff init --to Example/shop-api --lang zh-TW
+```
+
+後續不必重跑 `init`。重跑時會保留未指定的設定，只更新明確提供的選項；多個接收方可重複 `--to`。
+
+`init` 不是必要步驟：不想存設定，也能直接用 `handoff generate --to Example/shop-api`。
+
+## 4. 產生交接並傳檔
+
+前端 agent 或你完成變動後，在前端 repo 執行：
+
+```bash
+handoff generate --note "需求：實作 POST /api/register；依據：src/api/auth.ts:18 已呼叫；驗收：成功與重複 Email 的回應格式經雙方確認"
+```
+
+一個 `--note` 是一個待辦，第一個為 `TASK-001`，擷取的 TODO 接在後面。內容應足夠讓沒有前端 repo 的人理解。指令會顯示 `handoffs/<交接編號>/改動.md` 路徑，把檔案丟給後端即可。
+
+後端 agent 在**後端專案**裡操作；匯入不需要先初始化：
+
+```bash
+handoff info
 handoff import /收到的檔案路徑/改動.md
-handoff list
 handoff show <原始交接編號>
 
-# 實際完成並驗證後，再記錄狀態
-handoff update <原始交接編號> --task TASK-001 --status done --note "已完成 POST /api/register；Email 重複回傳 409"
-
-# 希望回覆的 HEAD 對應實作時，請先提交後端改動
-handoff reply <原始交接編號> --note "請確認前端已處理 HTTP 409"
+# 實際完成並驗證後才標記完成
+handoff update <原始交接編號> --task TASK-001 --status done --note "已實作並測試；重複 Email 回傳 409"
+handoff reply <原始交接編號> --note "請前端配合處理 HTTP 409"
 ```
 
-把產生的 `handoffs/<回覆編號>/回覆.md` 傳回前端。回覆會保留全部原始待辦編號、當前狀態、說明與後端 HEAD，但不會自動附上後端 diff。
-
-### 3. 前端查看回覆
+後端把 `handoffs/<回覆編號>/回覆.md` 傳回，前端執行：
 
 ```bash
 handoff import /收到的檔案路徑/回覆.md
 handoff show <原始交接編號>
 ```
 
-原始交接畫面會附上收到的回覆。多個 repo 的回覆分開保存；其中一方完成不代表其他方完成。同一方再次回覆會另存快照，依匯入順序顯示。
+請替換 `<原始交接編號>` 整段文字，不要照打角括號。常見問題見 [雙方試用指南](docs/TRY_IT.md)，也可看 [交接範例](examples/handoff.md) 與 [回覆範例](examples/reply.md)。
 
-更短的步驟與常見問題見 [雙方試用指南](docs/TRY_IT.md)。可直接閱讀 [實際產出的交接](examples/handoff.md) 與 [回覆](examples/reply.md)。
-
-## Git 比較範圍
+## 選對 Git 比較範圍
 
 ```bash
-# 預設：HEAD 到目前工作區，包含已暫存與未暫存的已追蹤變動
-handoff generate --to shop-api
-
-# 只有暫存區
-handoff generate --staged --to shop-api --to mobile-app
-
-# main 與 HEAD 的共同祖先到 HEAD，只有已提交變動
-handoff generate --base main --to shop-api
-
-# 自訂文件語言與檔案路徑；--note 可重複指定
-handoff generate --to shop-api --lang en --note "確認錯誤欄位" --output ./handoff.md
+handoff generate                         # HEAD 到工作區，包含已暫存與未暫存的已追蹤變動
+handoff generate --staged                # 只有暫存區
+handoff generate --base main             # main 與 HEAD 的共同祖先到 HEAD，只有已提交變動
+handoff generate --base HEAD~1           # 只有最後一個 commit 的變動
+handoff generate --to Example/shop-api --lang en --note "明確的需求" --output ./handoff.md
 ```
 
-`--base` 與 `--staged` 不可合用。新檔案需先暫存；重新命名視為刪除與新增。二進位或刪除檔案會列出檔名，不會從舊內容猜測待辦。
+**commit 或 push 後，如果工作區乾淨，預設就沒有可擷取的變動。** 已提交的任務要用 `--base` 指定真正的起點。新檔案先 `git add`，`--base` 不可與 `--staged` 合用。`--note` 可重複使用。目前沒有安裝 push hook 或推送 script。
 
-## 待辦狀態與本機紀錄
+## 指令與待辦狀態
 
-`update` 用於已匯入的交接：
+| 指令 | 功能 |
+| --- | --- |
+| `info` | 查看真正操作的 repo、來源辨識方式與預設接收方 |
+| `init` | 儲存預設值；需要別名時才用 `--project` |
+| `generate` | 根據指定 Git 範圍與明確需求產生交接 |
+| `import` | 檢查並匯入收到的交接或回覆，依 ID 去重 |
+| `list`／`show` | 查看本機紀錄與回覆 |
+| `update` | 更新已匯入交接中的一個待辦 |
+| `reply` | 產生保留原始待辦編號的回覆 |
+| `export` | 將原始文件匯出成 JSON 或 Markdown |
 
-```bash
-handoff update <交接編號> --task TASK-001 --status in-progress
-handoff update <交接編號> --task TASK-001 --status blocked --note "等待確認回應格式"
-handoff update <交接編號> --task TASK-001 --status needs-clarification --note "Email 重複是否回傳 409？"
-```
+待辦支援 `pending`、`in-progress`、`done`、`blocked`、`needs-clarification`。全部完成時回覆為 `completed`，沒有任務時保持 `pending`。遇到阻礙或不確定的需求，請在 `update`／`reply` 的 `--note` 說明。多個接收方的回覆分開保存，原始交接維持不變。
 
-支援 `pending`、`in-progress`、`done`、`blocked`、`needs-clarification`。全部任務完成時回覆為 `completed`；沒有待辦時保持 `pending`。工具不會根據 Git 變動自行判定完成。
+## 設定與舊版使用者
 
-紀錄保存在每個 repo 根目錄的 `.git-handoff/records/`，包含發出的文件與收到的回覆。完成交接前請保留此目錄，勿手動修改；若只想保留在本機，可自行將 `.git-handoff/` 加進專案的 `.gitignore`。
-
-原始交接是不可變的快照，接收方的回覆另外保存。`export` 匯出原始快照；要傳送更新後的狀態請用 `reply`。
-
-## 設定
-
-`init` 會在 Git 根目錄建立 `handoff.config.json`，不覆寫既有設定：
+新設定通常不需要 `project`，讓工具持續自動辨識：
 
 ```json
 {
-  "project": "shop-web",
-  "targets": ["shop-api", "mobile-app"],
+  "targets": ["Example/shop-api"],
   "output": "handoffs",
   "language": "zh-TW"
 }
 ```
 
-- `project` 需與寄件方使用的接收名稱一致；未設定時使用 repo 資料夾名稱。
-- `--to` 可重複指定，並取代設定中的 targets。名稱只是交接標籤，不會連線其他 repo。
-- `output` 相對 repo 根目錄，預設為 `handoffs`。
-- `--output` 是相對執行目錄的檔案路徑，不覆寫既有檔案。
-- `language` 支援 `zh-TW`、`en`，預設繁體中文；產生交接或回覆時可用 `--lang` 覆蓋。兩種語言預設檔名皆為 `改動.md`／`回覆.md`。
+- `output` 相對 Git 根目錄；`--output` 相對執行目錄，指向檔案且不覆寫既有產出。
+- `language` 支援 `zh-TW`（預設）、`en`；生成時可用 `--lang` 覆蓋。兩種語言預設檔名都是 `改動.md`／`回覆.md`。
+- `generate --to` 只改本次接收方；`init --to` 會更新保存的預設值。
+- `project` 是選填別名，例如 `handoff init --project shop-web`；既有設定的名稱會繼續生效。
+- 舊設定要切回自動辨識，可用 `handoff init --auto-project --to Example/shop-api`，先用 `info` 核對雙方名稱。正在往返的舊交接請先保留原別名，因為舊文件仍使用舊名稱。
 
-設定檔、設定的輸出目錄與 `.git-handoff/` 都不會被當成交接來源。
+本機紀錄在 `.git-handoff/records/`，請保留以對應回覆；若不想提交，可自行把 `.git-handoff/` 加入專案 `.gitignore`。紀錄、設定檔與設定的輸出目錄都不會被當成改動來源。
 
-## 文件格式與匯出
+## 格式與限制
 
-新文件使用 `schema_version: 1`，檔頭保存寄件方、接收方、HEAD、待辦、備註等資料。回覆另有 `reply_to` 對應原始交接。工具以檔頭資料為準，內文是可閱讀的呈現；請使用指令更新，不要手動編輯生成文件。舊版 0.1 無 schema 的文件也能匯入，保留原待辦編號。
-
-```bash
-handoff export <交接編號> --format json --output ./handoff.json
-handoff export <交接編號> --format markdown --output ./copy.md
-```
-
-兩種格式都能匯入。同 ID、相同資料會去重；同 ID、不同資料會拒絕匯入。回覆需對應已保存的原始交接、約定的接收方及原始待辦編號與文字。這些是流程檢查，不是寄件者身分驗證。
-
-## 限制與後續
-
-- TODO/FIXME 是新增行的文字比對，可能匹配字串或範例；不包含未變動與刪除的 TODO。
-- 檔案清單不等於程式碼語意摘要；API 契約與驗收條件需由人提供。
-- HEAD 無法還原未提交內容；完成狀態是開發者的回報，不代表工具驗證了實作或測試。
-- 文件需手動傳送，沒有 Telegram、Notion、Slack、Asana 或 Jira API 整合。
-- 匯入上限 2 MiB；分享前請檢查檔名與備註內容。
-- 本機紀錄用於對應原始交接，單一 repo 請一次執行一個寫入操作。
-
-目前優先確保 Markdown 內容正確、步驟清楚，並根據真實前後端試用調整。第三方整合與 AI 往後安排，見 [Roadmap](docs/ROADMAP.md)。
+- 工具以文件檔頭的結構資料為準，內文是閱讀用呈現。請用指令更新，不要直接編輯生成文件。
+- TODO 只比對新增行，也可能匹配字串或範例；改動摘要是檔案清單，不是完整 diff 或 AI 解釋。
+- HEAD 不包含未提交內容；回覆不會自動附後端 diff，也不代表工具已驗證測試結果。
+- `handoff export <交接編號> --format json --output ./handoff.json` 可匯出可再匯入的原始快照；更新後的待辦用 `reply` 傳送。
+- 匯入上限 2 MiB。接收名稱區分大小寫，是流程檢查而非身分驗證；自動名稱省略主機，跨主機撞名時可用明確別名區分。
+- 同 ID、相同資料會去重；同 ID、不同資料會拒絕。回覆需對應已保存的交接與原待辦編號、文字。
+- 第三方串接、CLI 自行呼叫 AI，以及完工／push 自動觸發均往後安排。單一 repo 請一次執行一個寫入操作。
 
 ## 開發與回報
 
@@ -165,4 +155,6 @@ npm run check
 npm test
 ```
 
-[回報問題](https://github.com/WatsonChen/git-handoff/issues/new/choose) 時，請附預期及實際輸出。貢獻方式見 [CONTRIBUTING.md](CONTRIBUTING.md)。目前尚未選定開源授權。
+[回報問題](https://github.com/WatsonChen/git-handoff/issues/new/choose) · [貢獻說明](CONTRIBUTING.md) · [Roadmap](docs/ROADMAP.md)
+
+目前尚未選定開源授權。
