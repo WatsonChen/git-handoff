@@ -1,0 +1,11 @@
+{
+  "name": "git-handoff",
+  "version": "0.1.0",
+  "description": "Portable Markdown handoffs between Git repositories",
+  "type": "module",
+  "bin": { "handoff": "bin/handoff.js" },
+  "files": ["bin", "src", "README.md"],
+  "engines": { "node": ">=22.18.0" },
+  "scripts": { "test": "node --test test/*.test.js", "check": "tsc --noEmit" },
+  "devDependencies": { "@types/node": "^22.0.0", "typescript": "^5.9.0" }
+}
