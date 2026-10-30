@@ -1,39 +1,85 @@
 # git-handoff
 
-把 Git 變動整理成 Markdown 交接文件，讓前端、後端、App 與其他 Repository 交換改動及待辦。
+**Turn Git diffs into Markdown handoff checklists for teams working across repositories.**
 
-目前是 CLI MVP：可產生文件，不需要 API Key，不會將原始碼傳送到外部服務。
+[![CI](https://github.com/WatsonChen/git-handoff/actions/workflows/ci.yml/badge.svg)](https://github.com/WatsonChen/git-handoff/actions/workflows/ci.yml)
 
-## 開發與安裝
+English | [繁體中文](README.zh-TW.md)
 
-需要 Git 與 Node.js 22.18 以上。
+Ship a frontend change, then give your backend or mobile team a document with changed files, explicit follow-up tasks, and source metadata. `git-handoff` is a local TypeScript CLI for cross-repository developer handoffs.
+
+**Status: early MVP.** `init` and `generate` work today. Importing, replying, automatic delivery, and AI summaries are planned. CLI messages and generated document headings are currently in Traditional Chinese; English output is planned.
+
+## Why use it?
+
+When frontend, backend, and mobile code live in separate Git repositories, a diff alone does not explain who needs to follow up. Package changed file names, TODO/FIXME markers from added lines, and your own notes into one portable checklist.
+
+```text
+Frontend repo → Git diff + explicit notes → 改動.md → Backend / Mobile team
+```
+
+Share the file manually with the receiving team. The tool records recipient names; it does not connect to those repositories.
+
+## Quick start
+
+Requires **Git** and **Node.js 22.18+**. Not yet published to npm.
 
 ```bash
 git clone https://github.com/WatsonChen/git-handoff.git
 cd git-handoff
 npm ci
-npm run check
-npm test
 npm link
 ```
 
-尚未發布至 npm；請使用上述本機安裝方式。
-
-## 使用
-
-在要交接的專案內操作：
+Then, inside the repository whose changes you want to hand off:
 
 ```bash
 handoff init
-handoff generate --to shop-api --note "請確認註冊 API 的錯誤格式"
-handoff generate --staged --to shop-api --to mobile-app
-handoff generate --base main --to shop-api
-handoff generate --to shop-api --output ./交接/改動.md
+
+# Edit files first. Stage new files with git add so Git can see them.
+handoff generate --to shop-api --note "Confirm the registration API error format"
 ```
 
-預設輸出 `handoffs/<唯一交接編號>/改動.md`。將文件傳給對應專案即可；工具不會自動傳送或修改其他 repo。既有檔案不會被覆寫。
+Open `handoffs/<handoff-id>/改動.md` and send it to the receiving team. Generation requires changes to tracked files and a repository with at least one commit.
 
-`init` 在 Git 根目錄建立 `handoff.config.json`，可手動編輯：
+Prefer not to use `npm link`? Run `node /absolute/path/to/git-handoff/bin/handoff.js generate --to shop-api` from your source repository instead.
+
+## What works today
+
+| Capability | Current behavior |
+| --- | --- |
+| Compare Git changes | Working tree, staging area, or committed feature branch changes |
+| Address multiple repositories | Repeat `--to`, or configure default recipient names |
+| Collect explicit tasks | Repeated `--note` values and TODO/FIXME markers in added diff lines |
+| Produce a Markdown handoff | Unique document ID, numbered checkboxes, changed file list, HEAD commit and comparison mode |
+| Keep documents separate | Unique default output directory; existing files are never overwritten |
+| Work locally | No API key, runtime npm dependencies, or external service calls |
+
+This version lists changed files. It does **not** generate a semantic explanation of code changes, include the full patch, infer API contracts, scan all outstanding tasks, or determine whether a task is complete.
+
+## Commands
+
+```bash
+# Working tree, including staged and unstaged tracked changes
+handoff generate --to shop-api
+
+# Staged changes only
+handoff generate --staged --to shop-api --to mobile-app
+
+# Committed changes since the merge base of main and HEAD
+handoff generate --base main --to shop-api
+
+# Explicit task and custom output path
+handoff generate --to shop-api --note "Confirm request and response fields" --output ./handoff.md
+
+handoff --help
+```
+
+`--note` can be repeated. `--base` and `--staged` cannot be combined. `--base` excludes uncommitted changes. Untracked files are excluded until staged. Renames appear as deletion/addition.
+
+## Configuration
+
+`handoff init` creates `handoff.config.json` at the Git root:
 
 ```json
 {
@@ -43,34 +89,62 @@ handoff generate --to shop-api --output ./交接/改動.md
 }
 ```
 
-`--to` 可重複指定，並取代設定檔的 targets。`output` 相對 repo 根目錄；`--output` 相對目前執行目錄。
+- `project`: source project label, defaulting to the repository folder name.
+- `targets`: recipient labels; explicit `--to` arguments replace these defaults.
+- `output`: output directory relative to the repository root. Defaults to `handoffs`.
+- `--output`: an explicit file path relative to the current working directory.
 
-## 比較範圍
+The configuration file and configured output directory are excluded from the handoff input. Default output is `handoffs/<handoff-id>/改動.md`.
 
-| 模式 | 內容 |
-| --- | --- |
-| 預設 | HEAD 到目前工作區，包含已暫存與未暫存的已追蹤檔案 |
-| `--staged` | HEAD 到暫存區 |
-| `--base main` | main 與 HEAD 的共同祖先到 HEAD，適合功能分支 |
+## Example output
 
-新檔案需先 `git add`；repo 需至少有一個 commit。設定檔與預設交接輸出目錄不列入交接。重新命名以刪除及新增呈現。
+See a [complete generated document](examples/handoff.md). Here is an excerpt with the current Chinese headings:
 
-## 文件內容與限制
+```markdown
+## 本次改動
 
-- 唯一交接編號、來源專案、多個接收專案、HEAD commit 與比較模式。
-- 變動檔案清單。
-- 使用者 `--note` 與差異新增行內 TODO/FIXME，整理為有編號的待辦。
-- 待確認與來源說明。
+- src/register.ts
 
-本版沒有 AI 語意摘要或 API 推斷。TODO/FIXME 掃描為文字比對，可能包含字串或文件範例；不是完整的專案待辦清單。請人工補充 API 契約、資料結構與驗收條件。
+## 待處理
 
-工作區／暫存區變動可能尚未提交，文件中的 HEAD 不足以還原這些內容；交接前建議先提交變動。產出的文件可能包含內部檔名或待辦文字，傳送前請閱讀。
+- [ ] [TASK-001] Confirm the registration API error format
+- [ ] [TASK-002] TODO: agree on duplicate email response (src/register.ts:2)
+```
 
-## 接下來
+YAML front matter includes `id`, `from`, `to`, `source_commit`, `comparison`, `status`, and `created_at`. Task numbers are local to each document; they do not yet provide cross-document status tracking. Initial status is always `pending`.
 
-- `import`：匯入文件並依交接編號去重。
-- `reply`：針對交接與待辦編號回覆處理結果。
-- 可選的 AI 摘要與 API 契約差異分析。
-- GitHub PR 工作流程整合。
+## Limitations
 
-歡迎透過 Issues 討論需求與回報問題。授權條款尚待專案擁有者選定。
+- TODO/FIXME extraction matches text in added lines; strings and documentation examples can match too. It is not a complete task inventory.
+- API contracts, data structures, and acceptance criteria need to be supplied or reviewed by a person.
+- In working-tree or staged mode, `source_commit` identifies HEAD, not a snapshot of uncommitted content.
+- Generated files can contain internal file names and task text. Read the document before sharing it.
+- CLI messages, document headings, and the default file name are currently Chinese.
+
+## Roadmap
+
+The next goal is a complete handoff round trip, then easier adoption:
+
+1. **Import and reply:** validate documents, avoid duplicate imports, and reply to a specific handoff/task.
+2. **English CLI and output:** selectable language and document templates.
+3. **First packaged release:** choose a license, verify the npm package name, and publish an installable release.
+4. **API contract support:** explicit request/response sections and contract-change checks.
+5. **Optional integrations:** GitHub PR workflow, opt-in AI summaries, and delivery to other repositories.
+
+These are plans, not available commands or release commitments. See the [detailed roadmap](docs/ROADMAP.md).
+
+## Contributing and feedback
+
+[Open an issue](https://github.com/WatsonChen/git-handoff/issues/new/choose) to report bugs or suggest workflows. Frontend/backend handoff examples and feedback on the generated checklist are especially useful.
+
+```bash
+npm ci
+npm run check
+npm test
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidance.
+
+## License
+
+A license has not been selected yet. This is public source code; no open-source license is currently granted. Licensing is a prerequisite for a wider release.

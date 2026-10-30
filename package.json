@@ -1,11 +1,47 @@
 {
   "name": "git-handoff",
   "version": "0.1.0",
-  "description": "Portable Markdown handoffs between Git repositories",
+  "description": "Generate Markdown handoff checklists from Git diffs for frontend, backend, and multi-repository teams",
   "type": "module",
-  "bin": { "handoff": "bin/handoff.js" },
-  "files": ["bin", "src", "README.md"],
-  "engines": { "node": ">=22.18.0" },
-  "scripts": { "test": "node --test test/*.test.js", "check": "tsc --noEmit" },
-  "devDependencies": { "@types/node": "^22.0.0", "typescript": "^5.9.0" }
+  "bin": {
+    "handoff": "bin/handoff.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "README.zh-TW.md",
+    "examples"
+  ],
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.9.0"
+  },
+  "keywords": [
+    "git",
+    "git-diff",
+    "handoff",
+    "markdown",
+    "cli",
+    "developer-tools",
+    "multi-repo",
+    "frontend",
+    "backend",
+    "todo"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/WatsonChen/git-handoff.git"
+  },
+  "homepage": "https://github.com/WatsonChen/git-handoff#readme",
+  "bugs": {
+    "url": "https://github.com/WatsonChen/git-handoff/issues"
+  }
 }
