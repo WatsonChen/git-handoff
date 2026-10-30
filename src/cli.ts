@@ -1,106 +1,236 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { resolve, basename, dirname } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { resolve, basename, dirname, relative, isAbsolute, sep } from 'node:path';
+import { newId, overall, render, taskStatuses, validate, type Handoff, type Language, type TaskStatus } from './document.ts';
+import { Store, entry, readDocument, fingerprint } from './store.ts';
 
-function git(args: string[]): string {
-  return execFileSync('git', ['--no-pager', ...args], {
-    encoding: 'utf8', maxBuffer: 20 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'],
-  });
+function git(args: string[], cwd = process.cwd()): string {
+  try {
+    return execFileSync('git', ['--no-pager', '--literal-pathspecs', '-c', 'core.quotePath=false', ...args], {
+      cwd, encoding: 'utf8', maxBuffer: 20 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  } catch (error) {
+    const stderr = (error as { stderr?: string }).stderr?.toString().trim();
+    throw new Error(stderr || 'Git command failed.');
+  }
 }
+interface Config { project?: string; targets?: string[]; output?: string; language?: Language }
+function configAt(path: string): Config {
+  let c: Config;
+  try { c = JSON.parse(readFileSync(path, 'utf8')); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return {}; throw error; }
+  const label = (s: unknown) => typeof s === 'string' && !!s.trim() && !/[\r\n\0]/.test(s);
+  if (!c || typeof c !== 'object' || Array.isArray(c) ||
+      (c.project !== undefined && !label(c.project)) ||
+      (c.output !== undefined && !label(c.output)) ||
+      (c.language !== undefined && !['en', 'zh-TW'].includes(c.language)) ||
+      (c.targets !== undefined && (!Array.isArray(c.targets) || !c.targets.every(label)))) {
+    throw new Error('Invalid handoff.config.json.');
+  }
+  return c;
+}
+const help = `git-handoff — cross-repository handoff checklists / 跨 repo 交接工具
 
-const help = `git-handoff — 跨 Repository 的 Markdown 交接工具
+handoff init [--project shop-web] [--lang en|zh-TW]
+handoff generate [--to shop-api] [--base main | --staged]
+                 [--note "Confirm API fields"] [--output path] [--lang en|zh-TW]
+handoff import <file.md|file.json>
+handoff list
+handoff show <handoff-id>
+handoff update <handoff-id> --task TASK-001 --status done [--note "Implemented"]
+handoff reply <handoff-id> [--note "API details"] [--output path] [--lang en|zh-TW]
+handoff export <handoff-id> --format json|markdown --output path
 
-handoff init
-handoff generate --to shop-api [--to admin-web] [--base main | --staged]
-                 [--note "請協助確認 API"] [--output 檔案路徑]
+Task states: pending, in-progress, done, blocked, needs-clarification.
+Default diff: HEAD to working tree (tracked files). Stage new files first.
+--base: merge base to HEAD (committed changes only); --staged: index only.
+Documents are shared manually. No remote integrations or AI calls.
+文件需手動交接；請使用 update/reply 更新狀態，不要手動編輯產出文件。`;
 
-預設比較 HEAD 與目前已追蹤檔案（包含暫存與未暫存變動）。
---base 比較指定參考與 HEAD 的共同祖先至 HEAD；--staged 僅讀取暫存區。
-新檔案請先 git add。設定檔：repo 根目錄的 handoff.config.json。
-本版產生確定的 Git 摘要與新增行中的 TODO/FIXME，不使用 AI。`;
+function options(args: string[], allowed: string[], flags: string[] = []): Map<string, string[]> {
+  const result = new Map<string, string[]>();
+  while (args.length) {
+    const key = args.shift()!;
+    if (!allowed.includes(key)) throw new Error(`Unknown option: ${key}`);
+    const value = flags.includes(key) ? 'true' : args.shift();
+    if (!value || value.startsWith('--')) throw new Error(`${key} requires a value.`);
+    if (result.has(key) && !['--to', '--note'].includes(key)) throw new Error(`Repeated option: ${key}`);
+    result.set(key, [...(result.get(key) ?? []), value]);
+  }
+  return result;
+}
+function one(opts: Map<string, string[]>, key: string): string | undefined { return opts.get(key)?.[0]; }
+function language(value?: string): Language {
+  if (value !== undefined && !['en', 'zh-TW'].includes(value)) throw new Error('--lang must be en or zh-TW.');
+  return (value ?? 'zh-TW') as Language;
+}
+function writeOutput(path: string, text: string): void {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, text, { flag: 'wx' });
+  console.log(`Created / 已建立: ${path}`);
+}
+function inside(path: string, directory: string): boolean {
+  const child = relative(directory, path);
+  return child === '' || (child !== '..' && !child.startsWith('..' + sep) && !isAbsolute(child));
+}
+function quotePath(path: string): string {
+  if (!path.startsWith('"')) return path;
+  // Git quotes control characters and arbitrary filename bytes using C escapes.
+  const body = path.slice(1, -1);
+  const buffers: Buffer[] = [];
+  for (let i = 0; i < body.length;) {
+    if (body[i] !== '\\') {
+      const next = body.indexOf('\\', i);
+      const end = next < 0 ? body.length : next;
+      buffers.push(Buffer.from(body.slice(i, end))); i = end; continue;
+    }
+    const octal = body.slice(i + 1).match(/^[0-7]{1,3}/)?.[0];
+    if (octal) { buffers.push(Buffer.from([parseInt(octal, 8)])); i += octal.length + 1; }
+    else {
+      const escapes: Record<string, string> = { t: '\t', n: '\n', r: '\r', a: '\x07', b: '\b', v: '\v', f: '\f', '\\': '\\', '"': '"' };
+      buffers.push(Buffer.from(escapes[body[i + 1]] ?? body[i + 1])); i += 2;
+    }
+  }
+  return Buffer.concat(buffers).toString('utf8');
+}
 
 export function main(args: string[]): void {
   const command = args.shift();
-  if (!command || command === '--help' || command === '-h') {
-    console.log(help); return;
-  }
-  if (!['init', 'generate'].includes(command)) throw new Error(`未知指令：${command}`);
+  if (!command || command === '--help' || command === '-h') { console.log(help); return; }
+  if (!['init', 'generate', 'import', 'list', 'show', 'update', 'reply', 'export'].includes(command)) throw new Error(`Unknown command: ${command}`);
   const root = git(['rev-parse', '--show-toplevel']).trim();
   const configPath = resolve(root, 'handoff.config.json');
   if (command === 'init') {
-    if (args.length) throw new Error('init 不接受額外參數');
-    writeFileSync(configPath, JSON.stringify({ project: basename(root), targets: [], output: 'handoffs' }, null, 2) + '\n', { flag: 'wx' });
-    console.log(`已建立 ${configPath}`); return;
+    const opts = options(args, ['--project', '--lang']);
+    const project = one(opts, '--project') ?? basename(root);
+    if (!project.trim() || /[\r\n\0]/.test(project)) throw new Error('Invalid project label.');
+    const lang = language(one(opts, '--lang'));
+    writeFileSync(configPath, JSON.stringify({ project, targets: [], output: 'handoffs', language: lang }, null, 2) + '\n', { flag: 'wx' });
+    console.log(`Created / 已建立: ${configPath}`); return;
   }
-  let config: { project?: string; targets?: string[]; output?: string } = {};
-  try { config = JSON.parse(readFileSync(configPath, 'utf8')); }
-  catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
-  if (!config || typeof config !== 'object' ||
-      (config.project !== undefined && typeof config.project !== 'string') ||
-      (config.output !== undefined && typeof config.output !== 'string') ||
-      (config.targets !== undefined && (!Array.isArray(config.targets) || config.targets.some(t => typeof t !== 'string')))) {
-    throw new Error('handoff.config.json 格式錯誤');
-  }
-  const targets: string[] = [], notes: string[] = [];
-  let base: string | undefined, staged = false, output: string | undefined;
-  while (args.length) {
-    const option = args.shift()!;
-    if (option === '--staged') { staged = true; continue; }
-    if (!['--to', '--note', '--base', '--output'].includes(option)) throw new Error(`未知選項：${option}`);
-    const value = args.shift();
-    if (!value || value.startsWith('--')) throw new Error(`${option} 需要值`);
-    if (option === '--to') targets.push(value);
-    if (option === '--note') notes.push(value);
-    if (option === '--base') base = value;
-    if (option === '--output') output = value;
-  }
-  if (base && staged) throw new Error('--base 與 --staged 無法同時使用');
-  if (!targets.length) targets.push(...(config.targets ?? []));
-  if (!targets.length) throw new Error('請用 --to 指定交接對象，或設定 config.targets');
-  const head = git(['rev-parse', 'HEAD']).trim();
-  const start = base ? git(['merge-base', '--', base, head]).trim() : undefined;
-  const range = staged ? ['--cached'] : start ? [start, head] : [head];
-  const common = ['diff', '--no-ext-diff', '--no-textconv', '--no-renames'];
-  const names = git([...common, '--name-only', '-z', ...range, '--']).split('\0').filter(Boolean);
-  // Generated documents must not recursively become another handoff's input.
+  const config = configAt(configPath);
+  const project = config.project ?? basename(root);
+  const store = new Store(root);
   const outputRoot = resolve(root, config.output ?? 'handoffs');
-  const included = names.filter(p => {
-    const absolute = resolve(root, p);
-    return absolute !== configPath && !absolute.startsWith(outputRoot + '/') && absolute !== resolve(process.cwd(), output ?? outputRoot);
-  });
-  if (!included.length) throw new Error('沒有可交接的變動；新檔案請先 git add');
-  const patch = git([...common, '--unified=0', ...range, '--', ...included]);
-  const todos: string[] = [];
-  let file = '', line = 0;
-  for (const row of patch.split('\n')) {
-    if (row.startsWith('+++ b/')) file = row.slice(6);
-    else if (row.startsWith('@@')) line = Number(row.match(/\+(\d+)/)?.[1] ?? 0);
-    else if (row.startsWith('+')) {
-      const match = row.slice(1).match(/\b(TODO|FIXME)\b[:\s-]*(.*)/);
-      if (match) todos.push(`${match[1]}: ${match[2].trim()} (${file}:${line})`);
-      line++;
-    } else if (row.startsWith(' ')) line++;
+  const lang = language(config.language);
+
+  if (command === 'generate') {
+    const opts = options(args, ['--to', '--note', '--base', '--staged', '--output', '--lang'], ['--staged']);
+    const base = one(opts, '--base'), staged = opts.has('--staged');
+    if (base && staged) throw new Error('--base and --staged cannot be combined.');
+    const targets = [...new Set(opts.get('--to') ?? config.targets ?? [])];
+    if (!targets.length) throw new Error('Specify recipients with --to or config.targets.');
+    const head = git(['rev-parse', 'HEAD'], root).trim();
+    const start = base ? git(['merge-base', '--', base, head], root).trim() : undefined;
+    const range = staged ? ['--cached'] : start ? [start, head] : [head];
+    const common = ['diff', '--no-ext-diff', '--no-textconv', '--no-renames', '--no-color', '--no-relative', '--src-prefix=a/', '--dst-prefix=b/'];
+    const names = git([...common, '--name-only', '-z', ...range, '--'], root).split('\0').filter(Boolean);
+    const output = one(opts, '--output');
+    const files = names.filter(p => {
+      const absolute = resolve(root, p);
+      return absolute !== configPath && !inside(absolute, outputRoot) && !inside(absolute, resolve(root, '.git-handoff')) && (!output || absolute !== resolve(output));
+    });
+    if (!files.length) throw new Error('No changes to hand off. Stage new files with git add.');
+    const patch = git([...common, '--unified=0', ...range, '--', ...files], root);
+    const todos: string[] = [];
+    let file = '', line = 0, inHunk = false;
+    for (const row of patch.split('\n')) {
+      if (row.startsWith('diff --git ')) { inHunk = false; file = ''; }
+      else if (!inHunk && row.startsWith('+++ ')) file = quotePath(row.slice(4).replace(/\t.*$/, '')).replace(/^b\//, '');
+      else if (row.startsWith('@@')) { line = Number(row.match(/\+(\d+)/)?.[1] ?? 0); inHunk = true; }
+      else if (inHunk && row.startsWith('+')) {
+        const match = row.slice(1).match(/\b(TODO|FIXME)\b[:\s-]*(.*)/);
+        if (match) todos.push(`${match[1]}: ${match[2].trim()} (${file}:${line})`);
+        line++;
+      } else if (inHunk && row.startsWith(' ')) line++;
+    }
+    const document: Handoff = {
+      schema_version: 1, kind: 'handoff', id: newId(), from: project, to: targets,
+      source_commit: head, comparison: staged ? 'staged' : start ? `${start}...${head}` : 'HEAD to working tree',
+      status: 'pending', created_at: new Date().toISOString(), language: language(one(opts, '--lang') ?? lang), files,
+      tasks: [...(opts.get('--note') ?? []), ...todos].map((text, i) => ({ id: `TASK-${String(i + 1).padStart(3, '0')}`, text, status: 'pending' })), notes: [],
+    };
+    const destination = output ? resolve(output) : resolve(outputRoot, document.id, '改動.md');
+    writeOutput(destination, render(document));
+    store.save(entry(document, 'outgoing'));
+    console.log(`ID: ${document.id}`); return;
   }
-  const id = `hf-${new Date().toISOString().slice(0, 10).replaceAll('-', '')}-${randomUUID().slice(0, 8)}`;
-  const destination = output ? resolve(output) : resolve(outputRoot, id, '改動.md');
-  const safe = (s: string) => s.replace(/[\r\n]/g, ' ').replace(/([\\`*_\[\]<>])/g, '\\$1');
-  const tasks = [...notes, ...todos];
-  const document = [
-    '---', `id: ${JSON.stringify(id)}`, `from: ${JSON.stringify(config.project ?? basename(root))}`,
-    `to: ${JSON.stringify([...new Set(targets)])}`, `source_commit: ${JSON.stringify(head)}`,
-    `comparison: ${JSON.stringify(staged ? 'staged' : start ? `${start}...${head}` : 'HEAD to working tree')}`,
-    'status: pending', `created_at: ${JSON.stringify(new Date().toISOString())}`, '---', '',
-    '# 變動交接', '', '## 本次改動', '',
-    ...included.map(p => `- ${safe(p)}`), '',
-    '## 待處理', '',
-    ...(tasks.length ? tasks.map((t, i) => `- [ ] [TASK-${String(i + 1).padStart(3, '0')}] ${safe(t)}`) : ['- 尚未提供待辦，請交接者補充。']), '',
-    '## 待確認', '', '- 請確認 API、資料結構與驗收條件；本文件未自動推斷介面需求。', '',
-    '## 來源說明', '',
-    '- 待辦來自 --note 與差異新增行內的 TODO/FIXME；不代表全部未完成工作。',
-    '- 工作區及暫存區的內容可能尚未提交，source_commit 僅標示產生時的 HEAD。', '',
-  ].join('\n');
-  mkdirSync(dirname(destination), { recursive: true });
-  writeFileSync(destination, document, { flag: 'wx' });
-  console.log(`已建立 ${destination}`);
+
+  if (command === 'list') {
+    options(args, []);
+    const records = store.all();
+    console.log(records.length ? records.map(r => `${r.document.id}  ${r.direction}  ${r.document.kind}  ${overall(r.tasks)}  ${r.document.from} -> ${r.document.to.join(', ')}  replies:${r.responses.length}`).join('\n') : 'No local handoffs / 尚無交接紀錄。');
+    return;
+  }
+
+  const idOrPath = args.shift();
+  if (!idOrPath || idOrPath.startsWith('--')) throw new Error(`${command} requires a ${command === 'import' ? 'file path' : 'handoff ID'}.`);
+  if (command === 'import') {
+    options(args, []);
+    const { document, fingerprint: digest } = readDocument(resolve(idOrPath));
+    if (!document.to.includes(project)) throw new Error(`Recipient mismatch: this repo is ${project}; document is addressed to ${document.to.join(', ')}. Set config.project to the agreed repo label.`);
+    const existing = store.get(document.id);
+    if (existing) {
+      if (existing.fingerprint !== digest) throw new Error('Same document ID has different content. Ask the sender to generate a new document.');
+      console.log(`Already imported / 已匯入: ${document.id}`); return;
+    }
+    if (document.kind === 'reply') {
+      const original = store.require(document.reply_to!);
+      if (original.direction !== 'outgoing' || original.document.kind !== 'handoff' || original.document.from !== project || !original.document.to.includes(document.from)) throw new Error('Reply sender or original handoff does not match.');
+      const expected = original.document.tasks;
+      if (document.tasks.length !== expected.length || document.tasks.some(task => !expected.some(t => t.id === task.id && t.text === task.text))) throw new Error('Reply tasks do not match the original handoff.');
+      if (!original.responses.some(r => r.id === document.id)) {
+        original.responses.push(document);
+        store.save(original, true);
+      }
+    }
+    store.save(entry(document, 'incoming'));
+    console.log(`Imported / 已匯入: ${document.id}`); return;
+  }
+
+  const record = store.require(idOrPath);
+  if (command === 'show') {
+    options(args, []);
+    console.log(render({ ...record.document, tasks: record.tasks, status: overall(record.tasks) }));
+    if (record.responses.length) {
+      console.log('\n# Received replies / 已收到的回覆\n');
+      // Keep each recipient's responses separate; one recipient cannot close another's tasks.
+      for (const response of record.responses) console.log(`## ${response.from} — ${response.id}\n\n${render(response)}`);
+    }
+    return;
+  }
+  if (command === 'export') {
+    const opts = options(args, ['--format', '--output']);
+    const format = one(opts, '--format'), output = one(opts, '--output');
+    if (!['json', 'markdown'].includes(format ?? '') || !output) throw new Error('export requires --format json|markdown and --output path.');
+    // Export the immutable source document; local changes are sent as a new reply.
+    writeOutput(resolve(output), format === 'json' ? JSON.stringify(record.document, null, 2) + '\n' : render(record.document));
+    return;
+  }
+  if (record.direction !== 'incoming' || record.document.kind !== 'handoff') throw new Error(`${command} requires an imported handoff, not an outgoing document or reply.`);
+  if (record.document.to.every(t => t !== project)) throw new Error('Local project label no longer matches the handoff recipient.');
+  if (command === 'update') {
+    const opts = options(args, ['--task', '--status', '--note']);
+    const task = record.tasks.find(t => t.id === one(opts, '--task'));
+    const status = one(opts, '--status') as TaskStatus;
+    if (!task) throw new Error('Specify an existing task with --task TASK-001.');
+    if (!taskStatuses.includes(status)) throw new Error(`--status must be one of: ${taskStatuses.join(', ')}`);
+    if ((opts.get('--note')?.length ?? 0) > 1) throw new Error('update accepts only one --note.');
+    task.status = status;
+    if (opts.has('--note')) task.note = one(opts, '--note');
+    validate({ ...record.document, tasks: record.tasks, status: overall(record.tasks) });
+    store.save(record, true);
+    console.log(`Updated / 已更新: ${record.document.id} ${task.id} -> ${status}`); return;
+  }
+  const opts = options(args, ['--note', '--output', '--lang']);
+  const reply: Handoff = {
+    schema_version: 1, kind: 'reply', id: newId(), from: project, to: [record.document.from],
+    reply_to: record.document.id, source_commit: git(['rev-parse', 'HEAD'], root).trim(), comparison: 'reply snapshot at HEAD',
+    status: overall(record.tasks), created_at: new Date().toISOString(), language: language(one(opts, '--lang') ?? lang),
+    files: [], tasks: structuredClone(record.tasks), notes: opts.get('--note') ?? [],
+  };
+  const destination = one(opts, '--output') ? resolve(one(opts, '--output')!) : resolve(outputRoot, reply.id, '回覆.md');
+  writeOutput(destination, render(reply));
+  store.save(entry(reply, 'outgoing'));
+  console.log(`ID: ${reply.id} (reply to ${reply.reply_to})`);
 }

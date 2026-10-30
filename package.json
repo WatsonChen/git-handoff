@@ -1,6 +1,6 @@
 {
   "name": "git-handoff",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Generate Markdown handoff checklists from Git diffs for frontend, backend, and multi-repository teams",
   "type": "module",
   "bin": {
@@ -11,7 +11,9 @@
     "src",
     "README.md",
     "README.zh-TW.md",
-    "examples"
+    "CONTRIBUTING.md",
+    "examples",
+    "docs"
   ],
   "engines": {
     "node": ">=22.18.0"

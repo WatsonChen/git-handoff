@@ -39,9 +39,9 @@ Set these through the gear next to **About** on the repository home page. Topics
 ## Before inviting wider use
 
 1. Choose a license with the project owner. Public visibility alone does not grant an open-source license.
-2. Add English CLI and document output so the first run matches the English introduction.
+2. Keep English and Traditional Chinese instructions aligned with actual CLI behavior.
 3. Verify the npm name and publish a tested, tagged release with a short installation command.
-4. Record a brief terminal demo: change → generate → inspect document. Show real output rather than planned features.
+4. Keep a complete generated document and a clear step-by-step handoff/reply guide in the repository. A demo video is not required.
 5. Ask a few developers who maintain separate repos to try a real handoff. Record time to first document, missing information, and whether they use it again.
 
 ## After the workflow proves useful

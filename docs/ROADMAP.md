@@ -1,45 +1,44 @@
 # Roadmap
 
-[Project overview](../README.md) · [繁體中文](../README.zh-TW.md)
+[English overview](../README.md) · [繁體中文](../README.zh-TW.md)
 
-This is a proposed sequence, not a delivery schedule. Only `init` and `generate` are implemented today.
+This is a proposed sequence, not a delivery schedule.
 
-## 1. Complete the handoff round trip
+## Implemented in the local CLI
 
-- Define and version the document format before adding consumers.
-- `import`: validate the document, confirm the recipient, and deduplicate by handoff ID.
-- Preserve source handoff/task IDs when importing tasks.
-- `reply`: reference the original handoff and record completed, blocked, and clarification-needed tasks.
-- Allow explicit status updates. Do not infer completion from a changed file alone.
+- Git comparison modes and explicit task extraction.
+- Versioned handoff data, Markdown rendering, and JSON export.
+- Recipient-checked import and duplicate detection.
+- Explicit task status updates and replies tied to original task IDs.
+- Separate response histories for multiple recipients.
+- English and Traditional Chinese documents.
 
-Success: a frontend team can send a document to a backend team, receive a reply, and identify which original tasks were addressed without a separate tracker.
+## Current priority: correct Markdown and clear instructions
 
-## 2. Make a first-time trial easier
+- Validate the full file exchange with frontend/backend collaborators.
+- Compare generated files/tasks against the requested Git comparison mode.
+- Keep observed changes, developer-supplied requirements, and unresolved questions distinct.
+- Improve error messages and instructions based on actual trial feedback.
+- Share documents manually through the conversation tools collaborators already use, including Telegram.
 
-- English CLI help, errors, and generated headings alongside Traditional Chinese.
-- Configurable output templates and file names.
-- Choose an open-source license with the project owner.
-- Check npm name availability and CLI command conflicts before publishing.
-- Validate installation on supported Node versions and operating systems.
-- Publish a tagged release with tested installation instructions.
+Use the [trial guide](TRY_IT.md). Clear usage documentation is the adoption priority; a demo video is not required.
 
-Success: a new user can install the tool and produce a useful handoff in a few minutes.
+## Later: more useful handoff content
 
-## 3. Make API handoffs more useful
+- Structured API request, response, error, and acceptance-criteria sections.
+- References to checked-in contracts such as OpenAPI.
+- Configurable Markdown templates.
+- Feedback-driven improvements to import/reply history and status summaries.
 
-- Structured request, response, error, and acceptance-criteria sections.
-- Explicit contract references, such as checked-in OpenAPI documents.
-- Distinguish observed changes, author-supplied requirements, and unresolved questions.
+## Before a wider release
 
-Success: receiving teams can see what is agreed and what still needs discussion.
+- Choose a license with the project owner.
+- Check npm package-name availability and CLI conflicts.
+- Verify installation on supported Node versions and operating systems.
+- Publish a tested package and tagged release.
 
-## 4. Add optional automation
+## Deferred: third-party platforms and AI
 
-- GitHub PR checks or attached handoff artifacts.
-- Optional delivery with explicit repository access and recipient configuration.
-- Optional AI summaries with clear provenance and a local-only default.
-- Keep generation usable without accounts, AI services, or hosted infrastructure.
+Notion, Slack, Asana, Jira, and Telegram connections are not implemented and are not required for the current trial. The structured document model can support separate adapters later. Posting to a service and synchronizing task status back are distinct future capabilities.
 
-## Feedback wanted
-
-What do you currently send between repositories? Which information is most often missing? Share a sanitized example through [GitHub Issues](https://github.com/WatsonChen/git-handoff/issues/new/choose).
+Optional AI summaries may follow once source-derived content and the manual workflow are reliable. Generation should remain usable without external accounts or services.
