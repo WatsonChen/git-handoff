@@ -10,26 +10,15 @@ Install the tool in its own folder: [English](../README.md#1-install-the-tool-on
 
 工具只需裝一次。**操作交接時，要離開工具目錄，切換到真正的前端或後端 repo。**
 
-## Identify both application repos / 確認雙方 repo
-
-Run this in the actual frontend and backend project directories:
-
-```bash
-handoff info
-```
-
-The frontend might show `Example/shop-web`; the backend might show `Example/shop-api`. Use the exact backend identity as the frontend's recipient. Source identities are automatic; you do not have to name your current project.
-
-前後端各執行一次，把後端顯示的專案識別給前端。來源專案自動辨識，不必再手動指定自己。
-
-## Frontend setup / 前端儲存預設值（選用，一次即可）
+## Open the actual application repo / 切換到真正的專案
 
 ```bash
 cd /path/to/frontend-project
-handoff init --to Example/shop-api --lang zh-TW
 ```
 
-`init` saves defaults. You do not run it for every task; repeated runs preserve unspecified values. Without it, add `--to Example/shop-api` to `generate`.
+No `init` or recipient setup is needed. The tool detects the source repository; the receiving repo takes on the handoff when importing. Use `handoff info` only to inspect identity.
+
+不用初始化或約定接收方名稱。前端產生檔案，後端在自己的 repo 匯入即可。
 
 ## Generate and send / 產生並傳送
 
@@ -82,7 +71,7 @@ Read the received response beneath the original handoff. The original snapshot s
 | --- | --- |
 | Wrong files or project identity | Run `info` and confirm you are in the application repo, not the tool clone. |
 | No changes | Stage new files. If changes are committed, choose their actual start with `--base`; push alone does not create a working-tree diff. |
-| Recipient mismatch | Ask the backend to run `info`, then use that exact identity in the frontend's `--to`. Do not edit the received file. |
+| Recipient mismatch | Only applies to explicitly targeted handoffs or saved targets. Open handoffs need no recipient setup. Do not edit received files. |
 | Old configured alias | Keep it during existing exchanges, or use `init --auto-project` for future exchanges and update recipient defaults accordingly. |
 | Already imported | Expected for duplicates. Local task progress is preserved. |
 | Unknown handoff | Check `list` in the right repo and preserve `.git-handoff/`. Import the original before replying. |

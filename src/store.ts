@@ -10,6 +10,7 @@ export interface RecordEntry {
   fingerprint: string;
   tasks: Task[];
   responses: Handoff[];
+  receivedBy?: string;
 }
 export function readDocument(path: string): { document: Handoff; fingerprint: string } {
   if (statSync(path).size > 2 * 1024 * 1024) throw new Error('Document exceeds 2 MiB.');
@@ -40,6 +41,7 @@ export class Store {
     catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return; throw error; }
     const record = JSON.parse(raw) as RecordEntry;
     if (record.version !== 1 || !['incoming', 'outgoing'].includes(record.direction)) throw new Error('Invalid local record.');
+    if (record.receivedBy !== undefined && (record.direction !== 'incoming' || typeof record.receivedBy !== 'string' || !record.receivedBy.trim() || /[\r\n\0]/.test(record.receivedBy))) throw new Error('Invalid local receiver.');
     validate(record.document);
     if (record.document.id !== id || record.fingerprint !== fingerprint(record.document)) throw new Error('Local document integrity check failed.');
     validate({ ...record.document, tasks: record.tasks, status: overall(record.tasks) });

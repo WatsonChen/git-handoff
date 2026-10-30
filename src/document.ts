@@ -42,7 +42,7 @@ export function validate(value: unknown): Handoff {
   if (Object.keys(d).some(key => !fields.includes(key))) throw new Error('Unknown document field.');
   if (d.schema_version !== 1) throw new Error('Unsupported schema_version (expected 1).');
   if (!['handoff', 'reply'].includes(d.kind) || !label(d.id) || !validId(d.id)) throw new Error('Invalid document kind or ID.');
-  if (!label(d.from) || !Array.isArray(d.to) || !d.to.length || !d.to.every(label) || new Set(d.to).size !== d.to.length) throw new Error('Invalid sender or recipients.');
+  if (!label(d.from) || !Array.isArray(d.to) || !d.to.every(label) || new Set(d.to).size !== d.to.length) throw new Error('Invalid sender or recipients.');
   if (typeof d.source_commit !== 'string' || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(d.source_commit)) throw new Error('Invalid source_commit.');
   if (!label(d.comparison) || !label(d.created_at) || Number.isNaN(Date.parse(d.created_at))) throw new Error('Invalid document metadata.');
   if (!['zh-TW', 'en'].includes(d.language)) throw new Error('Invalid document language.');
@@ -94,6 +94,7 @@ export function render(d: Handoff): string {
   return [
     '---', ...Object.entries(d).map(([key, value]) => `${key}: ${JSON.stringify(value)}`), '---', '',
     `# ${title}`, '',
+    ...(d.kind === 'handoff' && !d.to.length ? [en ? 'Recipients: open — the repository that imports this file can take it on.' : '接收方：未指定，由匯入此文件的專案接手。', ''] : []),
     ...(d.reply_to ? [`${en ? 'Reply to' : '原始交接'}: ${d.reply_to}`, ''] : []),
     `## ${en ? 'Changed files' : '本次改動'}`, '',
     ...(d.files.length ? d.files.map(p => `- ${safe(p)}`) : [en ? '- No file list attached.' : '- 未附變動檔案清單。']), '',

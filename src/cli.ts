@@ -47,6 +47,7 @@ Task states: pending, in-progress, done, blocked, needs-clarification.
 Install this tool once; run commands inside the repo whose changes you want.
 Source project is detected from its Git remote. init is optional, saves defaults,
 and preserves unspecified settings when run again. --project is an optional alias.
+Recipients are optional: without --to or saved targets, any repo can import the handoff.
 工具只需安裝一次；切換至實際專案操作，自動辨識來源。init 選用，不必每次執行。
 Default diff: HEAD to working tree (tracked files). Stage new files first.
 --base: merge base to HEAD (committed changes only); --staged: index only.
@@ -105,7 +106,7 @@ function printInfo(root: string, config: Config, identity: Identity): void {
     `Repository / 目前操作的 repo: ${root}`,
     `Project / 專案識別: ${identity.project}`,
     `Identity source / 辨識來源: ${identity.source}`,
-    `Recipients / 預設接收方: ${config.targets?.join(', ') || '(not set / 未設定；generate 時指定 --to)'}`,
+    `Recipients / 預設接收方: ${config.targets?.join(', ') || '(open / 未指定，由匯入的專案接手)'}`,
     `Language / 文件語言: ${config.language ?? 'zh-TW'}`,
   ].join('\n'));
 }
@@ -143,7 +144,6 @@ export function main(args: string[]): void {
     const base = one(opts, '--base'), staged = opts.has('--staged');
     if (base && staged) throw new Error('--base and --staged cannot be combined.');
     const targets = [...new Set(opts.get('--to') ?? config.targets ?? [])];
-    if (!targets.length) throw new Error('Specify recipients with --to or config.targets.');
     const head = git(['rev-parse', 'HEAD'], root).trim();
     const start = base ? git(['merge-base', '--', base, head], root).trim() : undefined;
     const range = staged ? ['--cached'] : start ? [start, head] : [head];
@@ -183,7 +183,7 @@ export function main(args: string[]): void {
   if (command === 'list') {
     options(args, []);
     const records = store.all();
-    console.log(records.length ? records.map(r => `${r.document.id}  ${r.direction}  ${r.document.kind}  ${overall(r.tasks)}  ${r.document.from} -> ${r.document.to.join(', ')}  replies:${r.responses.length}`).join('\n') : 'No local handoffs / 尚無交接紀錄。');
+    console.log(records.length ? records.map(r => `${r.document.id}  ${r.direction}  ${r.document.kind}  ${overall(r.tasks)}  ${r.document.from} -> ${r.receivedBy ?? (r.document.to.join(', ') || '(open)')}  replies:${r.responses.length}`).join('\n') : 'No local handoffs / 尚無交接紀錄。');
     return;
   }
 
@@ -192,7 +192,7 @@ export function main(args: string[]): void {
   if (command === 'import') {
     options(args, []);
     const { document, fingerprint: digest } = readDocument(resolve(idOrPath));
-    if (!document.to.includes(project)) throw new Error(`Recipient mismatch: this repo is ${project}; document is addressed to ${document.to.join(', ')}. Run handoff info in the receiving repo and use that exact identity in the sender's --to. For an existing alias-based exchange, use handoff init --project <alias>.`);
+    if (document.to.length && !document.to.includes(project)) throw new Error(`Recipient mismatch: this repo is ${project}; document is addressed to ${document.to.join(', ')}. Run handoff info in the receiving repo and use that exact identity in the sender's --to. For an existing alias-based exchange, use handoff init --project <alias>.`);
     const existing = store.get(document.id);
     if (existing) {
       if (existing.fingerprint !== digest) throw new Error('Same document ID has different content. Ask the sender to generate a new document.');
@@ -200,7 +200,7 @@ export function main(args: string[]): void {
     }
     if (document.kind === 'reply') {
       const original = store.require(document.reply_to!);
-      if (original.direction !== 'outgoing' || original.document.kind !== 'handoff' || original.document.from !== project || !original.document.to.includes(document.from)) throw new Error('Reply sender or original handoff does not match.');
+      if (original.direction !== 'outgoing' || original.document.kind !== 'handoff' || original.document.from !== project || (original.document.to.length && !original.document.to.includes(document.from))) throw new Error('Reply sender or original handoff does not match.');
       const expected = original.document.tasks;
       if (document.tasks.length !== expected.length || document.tasks.some(task => !expected.some(t => t.id === task.id && t.text === task.text))) throw new Error('Reply tasks do not match the original handoff.');
       if (!original.responses.some(r => r.id === document.id)) {
@@ -208,13 +208,14 @@ export function main(args: string[]): void {
         store.save(original, true);
       }
     }
-    store.save(entry(document, 'incoming'));
+    store.save({ ...entry(document, 'incoming'), receivedBy: project });
     console.log(`Imported / 已匯入: ${document.id}`); return;
   }
 
   const record = store.require(idOrPath);
   if (command === 'show') {
     options(args, []);
+    if (record.receivedBy) console.log(`Local receiver / 本機接手專案: ${record.receivedBy}\n`);
     console.log(render({ ...record.document, tasks: record.tasks, status: overall(record.tasks) }));
     if (record.responses.length) {
       console.log('\n# Received replies / 已收到的回覆\n');
@@ -232,7 +233,7 @@ export function main(args: string[]): void {
     return;
   }
   if (record.direction !== 'incoming' || record.document.kind !== 'handoff') throw new Error(`${command} requires an imported handoff, not an outgoing document or reply.`);
-  if (record.document.to.every(t => t !== project)) throw new Error('Local project label no longer matches the handoff recipient.');
+  if (record.receivedBy ? record.receivedBy !== project : !record.document.to.includes(project)) throw new Error('Local project label no longer matches the handoff recipient.');
   if (command === 'update') {
     const opts = options(args, ['--task', '--status', '--note']);
     const task = record.tasks.find(t => t.id === one(opts, '--task'));

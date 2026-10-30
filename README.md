@@ -8,7 +8,7 @@ English | [繁體中文](README.zh-TW.md)
 
 Frontend agent finishes → produces `改動.md` → you send it through Telegram → backend agent reads it, implements changes, and produces `回覆.md`.
 
-Engineers can use the same workflow directly. This local CLI does not call an AI service or send documents automatically. **Current version: 0.2.1; not yet published to npm.**
+Engineers can use the same workflow directly. This local CLI does not call an AI service or send documents automatically. **Current version: 0.2.2; not yet published to npm.**
 
 ## What is automatic?
 
@@ -38,29 +38,13 @@ npm link
 
 `npm link` makes `handoff` available from other directories. This clone is the **tool's source code**, not the project whose changes you want to hand off. To update this clone later: `git pull --ff-only`, then `npm ci`.
 
-## 2. Switch to your actual project
+## 2. Generate inside your actual project
 
 ```bash
 cd /path/to/your/frontend-project
-handoff info
 ```
 
-`info` shows the repository root and detected project identity, for example `Example/shop-web`. The source identity comes from `origin`; if absent, a sole remote is used. HTTPS and SSH remote URLs produce the same `owner/repo` label. With no usable remote, or multiple remotes without `origin`, the folder name is used. Detection only reads local Git configuration and does not contact the server.
-
-No `--project` is needed. Backend collaborators can run `handoff info` in their repo and share that exact identity as the recipient.
-
-## 3. Save defaults once (optional)
-
-```bash
-# Example/shop-api is the receiving repo's identity, not your current repo.
-handoff init --to Example/shop-api --lang en
-```
-
-This saves recipient and language defaults. You do not repeat `init` for every task. Running it again preserves unspecified settings and updates only explicitly supplied options. Multiple recipients: repeat `--to`.
-
-`init` is optional: without a config, use `handoff generate --to Example/shop-api` directly.
-
-## 4. Create a handoff, then exchange the files
+No `init`, source project name, or recipient setup is required. The source is detected from the Git remote (folder name as a fallback). By default the handoff is open: the repository that imports it takes it on. Use `handoff info` only if you want to check the detected source.
 
 After your agent or you changes tracked files in the frontend project:
 
@@ -70,10 +54,9 @@ handoff generate --note "Implement POST /api/register; evidence: src/api/auth.ts
 
 The first note becomes `TASK-001`; added-line TODOs follow it. Give each task enough context for someone without the frontend repo. The CLI prints `handoffs/<id>/改動.md` and the original handoff ID. Send that file to the backend agent's operator.
 
-Inside the **backend project**, no initialization is required for import:
+Inside the **backend project**, import the file directly:
 
 ```bash
-handoff info
 handoff import /path/to/received/改動.md
 handoff show <original-id>
 
@@ -124,7 +107,7 @@ A new `handoff.config.json` normally omits `project` so detection stays automati
 
 ```json
 {
-  "targets": ["Example/shop-api"],
+  "targets": [],
   "output": "handoffs",
   "language": "en"
 }
@@ -132,9 +115,11 @@ A new `handoff.config.json` normally omits `project` so detection stays automati
 
 - `output` is relative to the Git root; `--output` is a file path relative to the current directory. Existing generated files are never overwritten.
 - `language`: `en` or `zh-TW` (default). `--lang` overrides generated-document language. Default file names remain `改動.md` / `回覆.md`.
-- `--to` replaces configured recipients for that document only; `init --to` updates stored defaults.
+- Recipients are optional. With no `--to` or saved targets, `to: []` means an open handoff. Import records the local receiving identity without changing the original document. Replies automatically address the original sender.
+- Optional targeting: `generate --to Example/shop-api` restricts who can import. `init --to Example/shop-api` saves that default. Existing saved targets remain honored; set `targets` to `[]` in config to return to open handoffs.
+- `init` is optional and preserves unspecified settings when run again.
 - `project` is an optional alias: `handoff init --project shop-web`. Existing configured names remain respected.
-- To switch an old alias-based setup to automatic identity: `handoff init --auto-project --to Example/shop-api`. Use `info` to check both sides first. Keep an existing alias until its in-flight exchanges are complete, because old documents still address that label.
+- To switch an old alias-based setup to automatic identity: `handoff init --auto-project`. Use `info` to check both sides first. Keep an existing alias until its in-flight exchanges are complete, because old documents still address that label.
 
 Local history lives in `.git-handoff/records/`. Preserve it for reply matching; optionally add `.git-handoff/` to your project's `.gitignore`. Records, config, and the configured output folder are excluded from generated input.
 
@@ -145,7 +130,7 @@ Local history lives in `.git-handoff/records/`. Preserve it for reply matching; 
 - HEAD identifies a commit, not uncommitted content. Replies do not automatically include backend diffs or prove that tests passed.
 - `handoff export <id> --format json --output ./handoff.json` also produces an importable source snapshot. Local task changes are sent via `reply`.
 - Imports accept up to 2 MiB. Recipient labels are case-sensitive workflow checks, not authentication; hosted identities omit the host, so use explicit aliases if hosts would collide.
-- Same ID/data deduplicates; changed data under the same ID is rejected. Replies must match a saved outgoing handoff and its task IDs/texts.
+- Same ID/data deduplicates; changed data under the same ID is rejected. Replies must match a saved outgoing handoff and its task IDs/texts. For targeted handoffs the replying project must also be a named recipient; open handoffs accept replies from the repositories that take them on.
 - Third-party APIs, AI generation, and automatic completion/push triggers are deferred. Use one CLI writer per repo at a time.
 
 ## Development and feedback

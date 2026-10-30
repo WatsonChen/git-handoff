@@ -9,7 +9,7 @@ This is a proposed sequence, not a delivery schedule.
 - Automatic source identity from Git remotes; optional one-time defaults and manual aliases.
 - Git comparison modes and explicit task extraction.
 - Versioned handoff data, Markdown rendering, and JSON export.
-- Recipient-checked import and duplicate detection.
+- Open handoffs without recipient setup; optional targeted imports and duplicate detection.
 - Explicit task status updates and replies tied to original task IDs.
 - Separate response histories for multiple recipients.
 - English and Traditional Chinese documents.

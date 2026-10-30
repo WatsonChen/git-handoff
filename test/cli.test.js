@@ -152,7 +152,7 @@ test('reject malformed, conflicting, wrong-recipient and unsupported documents w
     { ...document, tasks: [document.tasks[0], document.tasks[0]] },
     { ...document, status: 'completed' },
     { ...document, source_commit: 'not-a-commit' },
-    { ...document, to: [] },
+    { ...document, to: null },
   ];
   for (const data of invalid) {
     writeDocument(path, data);
@@ -373,4 +373,70 @@ test('two repositories with HTTPS/SSH identities exchange documents without init
   assert.equal(parseDocument(readFileSync(reply, 'utf8')).from, 'Example/api');
   assert.equal(front.run('import', reply).status, 0);
   assert.equal(state(front, doc.id).responses[0].status, 'completed');
+});
+
+test('open handoffs complete a round trip without init or specifying either recipient', t => {
+  const front = fixture(t), back = fixture(t);
+  front.git('remote', 'add', 'origin', 'https://github.com/Example/frontend.git');
+  back.git('remote', 'add', 'origin', 'git@github.com:OtherTeam/backend.git');
+  writeFileSync(join(front.cwd, 'api.ts'), '// TODO: implement endpoint\n');
+  const source = join(front.cwd, 'handoff.md');
+  const generated = front.run('generate', '--output', source);
+  assert.equal(generated.status, 0, generated.stderr);
+  const document = parseDocument(readFileSync(source, 'utf8'));
+  assert.deepEqual(document.to, []);
+  assert.match(readFileSync(source, 'utf8'), /接收方：未指定/);
+  assert.equal(back.run('import', source).status, 0);
+  const accepted = state(back, document.id);
+  assert.equal(accepted.receivedBy, 'OtherTeam/backend');
+  assert.deepEqual(accepted.document.to, []); // Taking on a task never rewrites its source snapshot.
+  back.run('update', document.id, '--task', 'TASK-001', '--status', 'done');
+  assert.match(back.run('import', source).stdout, /Already imported/);
+  assert.equal(state(back, document.id).tasks[0].status, 'done');
+  const replyPath = join(back.cwd, 'reply.md');
+  assert.equal(back.run('reply', document.id, '--output', replyPath).status, 0);
+  const reply = parseDocument(readFileSync(replyPath, 'utf8'));
+  assert.deepEqual(reply.to, ['Example/frontend']);
+  assert.equal(front.run('import', replyPath).status, 0);
+  assert.equal(state(front, document.id).responses[0].from, 'OtherTeam/backend');
+  assert.equal(state(front, document.id).responses[0].status, 'completed');
+  assert.equal(existsSync(join(front.cwd, 'handoff.config.json')), false);
+  assert.equal(existsSync(join(back.cwd, 'handoff.config.json')), false);
+});
+
+test('open handoffs accept multiple receivers independently and bind local work to the importing identity', t => {
+  const front = fixture(t);
+  front.git('remote', 'add', 'origin', 'https://github.com/Example/web.git');
+  writeFileSync(join(front.cwd, 'api.ts'), '// TODO: confirm contract\n');
+  const source = join(front.cwd, 'handoff.md');
+  front.run('generate', '--output', source);
+  const document = parseDocument(readFileSync(source, 'utf8'));
+  for (const [repoName, status] of [['api', 'done'], ['mobile', 'blocked']]) {
+    const receiver = fixture(t);
+    receiver.git('remote', 'add', 'origin', `https://github.com/Example/${repoName}.git`);
+    assert.equal(receiver.run('import', source).status, 0);
+    assert.equal(receiver.run('update', document.id, '--task', 'TASK-001', '--status', status).status, 0);
+    const reply = join(receiver.cwd, 'reply.md');
+    assert.equal(receiver.run('reply', document.id, '--output', reply).status, 0);
+    assert.equal(front.run('import', reply).status, 0);
+    receiver.git('remote', 'set-url', 'origin', 'https://github.com/Example/renamed.git');
+    assert.equal(receiver.run('update', document.id, '--task', 'TASK-001', '--status', 'done').status, 1);
+    assert.equal(receiver.run('reply', document.id).status, 1);
+  }
+  assert.deepEqual(state(front, document.id).responses.map(r => [r.from, r.status]), [['Example/api', 'completed'], ['Example/mobile', 'blocked']]);
+});
+
+test('replies must always have one explicit recipient even when the original was open', t => {
+  const front = fixture(t), back = fixture(t);
+  writeFileSync(join(front.cwd, 'api.ts'), '// TODO: work\n');
+  const source = join(front.cwd, 'handoff.md');
+  front.run('generate', '--output', source);
+  const document = parseDocument(readFileSync(source, 'utf8'));
+  back.run('import', source);
+  const replyPath = join(back.cwd, 'reply.md');
+  back.run('reply', document.id, '--output', replyPath);
+  const reply = parseDocument(readFileSync(replyPath, 'utf8'));
+  writeDocument(join(front.cwd, 'bad-reply.json'), { ...reply, to: [] });
+  assert.equal(front.run('import', join(front.cwd, 'bad-reply.json')).status, 1);
+  assert.equal(state(front, document.id).responses.length, 0);
 });

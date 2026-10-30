@@ -6,7 +6,7 @@
 
 前端 agent 完工 → 產生 `改動.md` → 你透過 Telegram 傳檔 → 後端 agent 讀取並修改 → 產生 `回覆.md` 傳回。
 
-工程師自己開發也能使用。目前版本 **0.2.1**，尚未發布至 npm。工具在本機執行，不會自行呼叫 AI 或傳送文件。
+工程師自己開發也能使用。目前版本 **0.2.2**，尚未發布至 npm。工具在本機執行，不會自行呼叫 AI 或傳送文件。
 
 ## 哪些內容是自動產生的？
 
@@ -36,31 +36,13 @@ npm link
 
 `npm link` 讓其他資料夾也能使用 `handoff`。這裡 clone 的是工具原始碼，**不是要被分析的前端或後端專案**。之後更新工具時，在這個一般 clone 內執行 `git pull --ff-only` 與 `npm ci`。
 
-## 2. 切換到真正要交接的專案
+## 2. 在真正的專案裡產生交接
 
 ```bash
 cd /你的前端專案路徑
-handoff info
 ```
 
-`info` 會顯示目前 repo 根目錄與辨識出的名稱，例如 `Example/shop-web`，方便確認操作位置。
-
-工具優先讀 `origin`；沒有 `origin` 時，使用唯一的 remote。HTTPS、SSH 會得到相同的 `owner/repo` 名稱。沒有可用 remote，或多個 remote 無法決定時，才使用資料夾名稱。這些資訊只讀取本機 Git 設定，不會連線伺服器。
-
-**不必再用 `--project` 指定自己。** 後端也可以在自己的 repo 執行 `handoff info`，把顯示的名稱給前端當接收方。
-
-## 3. 儲存預設接收方，選用且只需設定一次
-
-```bash
-# Example/shop-api 是對方，不是你目前所在的專案
-handoff init --to Example/shop-api --lang zh-TW
-```
-
-後續不必重跑 `init`。重跑時會保留未指定的設定，只更新明確提供的選項；多個接收方可重複 `--to`。
-
-`init` 不是必要步驟：不想存設定，也能直接用 `handoff generate --to Example/shop-api`。
-
-## 4. 產生交接並傳檔
+**不用 init，不用指定自己，也不用設定接收方。** 工具自動從 Git remote 辨識來源，沒有可用 remote 時使用資料夾名稱。預設是未指定對象的交接，由匯入文件的專案接手；只有想檢查目前辨識結果時才需要 `handoff info`。
 
 前端 agent 或你完成變動後，在前端 repo 執行：
 
@@ -73,7 +55,6 @@ handoff generate --note "需求：實作 POST /api/register；依據：src/api/a
 後端 agent 在**後端專案**裡操作；匯入不需要先初始化：
 
 ```bash
-handoff info
 handoff import /收到的檔案路徑/改動.md
 handoff show <原始交接編號>
 
@@ -124,7 +105,7 @@ handoff generate --to Example/shop-api --lang en --note "明確的需求" --outp
 
 ```json
 {
-  "targets": ["Example/shop-api"],
+  "targets": [],
   "output": "handoffs",
   "language": "zh-TW"
 }
@@ -132,9 +113,11 @@ handoff generate --to Example/shop-api --lang en --note "明確的需求" --outp
 
 - `output` 相對 Git 根目錄；`--output` 相對執行目錄，指向檔案且不覆寫既有產出。
 - `language` 支援 `zh-TW`（預設）、`en`；生成時可用 `--lang` 覆蓋。兩種語言預設檔名都是 `改動.md`／`回覆.md`。
-- `generate --to` 只改本次接收方；`init --to` 會更新保存的預設值。
+- 接收方選填。不指定 `--to` 且沒有預設 targets 時，`to: []` 代表開放交接；匯入時記錄本機接手專案，不改寫原始文件。回覆自動指向原始寄件方。
+- 需要限制對象時才用 `generate --to Example/shop-api`；`init --to Example/shop-api` 可保存預設值。既有預設值仍會生效，想改回開放交接時把設定中的 `targets` 改為 `[]`。
+- `init` 是選用功能，重跑時保留未指定的設定。
 - `project` 是選填別名，例如 `handoff init --project shop-web`；既有設定的名稱會繼續生效。
-- 舊設定要切回自動辨識，可用 `handoff init --auto-project --to Example/shop-api`，先用 `info` 核對雙方名稱。正在往返的舊交接請先保留原別名，因為舊文件仍使用舊名稱。
+- 舊設定要切回自動辨識，可用 `handoff init --auto-project`，先用 `info` 核對雙方名稱。正在往返的舊交接請先保留原別名，因為舊文件仍使用舊名稱。
 
 本機紀錄在 `.git-handoff/records/`，請保留以對應回覆；若不想提交，可自行把 `.git-handoff/` 加入專案 `.gitignore`。紀錄、設定檔與設定的輸出目錄都不會被當成改動來源。
 
@@ -145,7 +128,7 @@ handoff generate --to Example/shop-api --lang en --note "明確的需求" --outp
 - HEAD 不包含未提交內容；回覆不會自動附後端 diff，也不代表工具已驗證測試結果。
 - `handoff export <交接編號> --format json --output ./handoff.json` 可匯出可再匯入的原始快照；更新後的待辦用 `reply` 傳送。
 - 匯入上限 2 MiB。接收名稱區分大小寫，是流程檢查而非身分驗證；自動名稱省略主機，跨主機撞名時可用明確別名區分。
-- 同 ID、相同資料會去重；同 ID、不同資料會拒絕。回覆需對應已保存的交接與原待辦編號、文字。
+- 同 ID、相同資料會去重；同 ID、不同資料會拒絕。回覆需對應已保存的交接與原待辦編號、文字。明確指定對象的交接另檢查回覆者是否為指定接收方；開放交接則接受實際接手專案的回覆。
 - 第三方串接、CLI 自行呼叫 AI，以及完工／push 自動觸發均往後安排。單一 repo 請一次執行一個寫入操作。
 
 ## 開發與回報
