@@ -24,6 +24,16 @@ The CLI does **not** infer API contracts, explain code semantics, or decide that
 
 See the [agent-to-agent workflow and ready-to-use instructions](docs/AGENT_WORKFLOW.md).
 
+## See it in use
+
+| Situation | Expected outcome |
+| --- | --- |
+| Member page needs an avatar field absent from the known response contract | Agent documents a cross-repo requirement, backend checks/implements it, frontend reads the reply |
+| Only a mock is available, with no verified API contract | Agent asks the other side to confirm; it does not assume a missing backend field |
+| Only button alignment and spacing changed | Agent reports no cross-repo work; no new handoff |
+
+Follow the [worked examples](docs/EXAMPLES.md), including what users ask, what agents run, which file gets sent, and how replies return. Browse the [actual generated documents](examples/README.md).
+
 ## 1. Install the tool once per machine
 
 Requires **Git** and **Node.js 22.18+**. Clone the tool into a separate tools directory, not into every frontend/backend project:

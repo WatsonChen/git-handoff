@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Documentation
+
+- Add bilingual worked examples for an avatar contract round trip, an uncertain API contract, and a layout-only task with no handoff.
+- Include CLI-generated documents and explain which file users send, how agents respond, and what completion claims mean.
+- Link the examples from both README entry points. No runtime behavior changed.
+
 ## 0.4.0 — 2026-11-02
 
 ### Rename to Sidepact
