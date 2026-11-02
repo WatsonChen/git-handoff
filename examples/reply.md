@@ -38,4 +38,4 @@ notes: ["請前端確認實際回應欄位與錯誤處理。"]
 
 - 待辦來自明確備註及差異新增行的 TODO/FIXME，不是完整專案待辦清單。
 - source_commit 標示 HEAD，不含未提交內容；回覆不會自動附上後端 diff。
-- 工具讀取檔頭資料。請用 handoff update/reply 更新狀態，不要手動修改產出的文件。
+- 工具讀取檔頭資料。請用 sidepact update/reply 更新狀態，不要手動修改產出的文件。

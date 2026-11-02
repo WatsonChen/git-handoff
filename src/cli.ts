@@ -5,6 +5,7 @@ import { newId, overall, render, taskStatuses, validate, type Handoff, type Lang
 import { Store, entry, readDocument } from './store.ts';
 import { identify, type Identity } from './identity.ts';
 import { agentSetup } from './agent-setup.ts';
+import { configPathFor } from './paths.ts';
 
 function git(args: string[], cwd = process.cwd()): string {
   try {
@@ -27,25 +28,25 @@ function configAt(path: string): Config {
       (c.output !== undefined && !label(c.output)) ||
       (c.language !== undefined && !['en', 'zh-TW'].includes(c.language)) ||
       (c.targets !== undefined && (!Array.isArray(c.targets) || !c.targets.every(label)))) {
-    throw new Error('Invalid handoff.config.json.');
+    throw new Error('Invalid Sidepact configuration.');
   }
   return c;
 }
-const help = `git-handoff — cross-repository handoff checklists / 跨 repo 交接工具
+const help = `Sidepact — cross-repository handoff checklists / 跨 repo 交接工具
 
-handoff info
-handoff enable [--agent auto|generic|codex|claude|copilot]
-handoff disable [--agent auto|generic|codex|claude|copilot]
-handoff agent-status [--agent auto|generic|codex|claude|copilot]
-handoff init [--to owner/shop-api] [--lang en|zh-TW] [--project alias | --auto-project]
-handoff generate [--to owner/shop-api] [--base main | --staged]
+sidepact info
+sidepact enable [--agent auto|generic|codex|claude|copilot]
+sidepact disable [--agent auto|generic|codex|claude|copilot]
+sidepact agent-status [--agent auto|generic|codex|claude|copilot]
+sidepact init [--to owner/shop-api] [--lang en|zh-TW] [--project alias | --auto-project]
+sidepact generate [--to owner/shop-api] [--base main | --staged]
                  [--note "Confirm API fields"] [--output path] [--lang en|zh-TW]
-handoff import <file.md|file.json>
-handoff list
-handoff show <handoff-id>
-handoff update <handoff-id> --task TASK-001 --status done [--note "Implemented"]
-handoff reply <handoff-id> [--note "API details"] [--output path] [--lang en|zh-TW]
-handoff export <handoff-id> --format json|markdown --output path
+sidepact import <file.md|file.json>
+sidepact list
+sidepact show <handoff-id>
+sidepact update <handoff-id> --task TASK-001 --status done [--note "Implemented"]
+sidepact reply <handoff-id> [--note "API details"] [--output path] [--lang en|zh-TW]
+sidepact export <handoff-id> --format json|markdown --output path
 
 Task states: pending, in-progress, done, blocked, needs-clarification.
 Install this tool once; run commands inside the repo whose changes you want.
@@ -126,7 +127,7 @@ export function main(args: string[]): void {
     const opts = options(args, ['--agent']);
     agentSetup(root, command, one(opts, '--agent') ?? 'auto'); return;
   }
-  const configPath = resolve(root, 'handoff.config.json');
+  const configPath = configPathFor(root);
   const config = configAt(configPath);
   if (command === 'init') {
     const opts = options(args, ['--to', '--project', '--auto-project', '--lang'], ['--auto-project']);
@@ -162,7 +163,7 @@ export function main(args: string[]): void {
     const output = one(opts, '--output');
     const files = names.filter(p => {
       const absolute = resolve(root, p);
-      return absolute !== configPath && !inside(absolute, outputRoot) && !inside(absolute, resolve(root, '.git-handoff')) && (!output || absolute !== resolve(output));
+      return ![configPath, resolve(root, 'sidepact.config.json'), resolve(root, 'handoff.config.json')].includes(absolute) && !inside(absolute, outputRoot) && !inside(absolute, resolve(root, '.git-handoff')) && !inside(absolute, resolve(root, '.sidepact')) && (!output || absolute !== resolve(output));
     });
     if (!files.length) throw new Error('No changes to hand off. Stage new files with git add.');
     const patch = git([...common, '--unified=0', ...range, '--', ...files], root);
@@ -202,7 +203,7 @@ export function main(args: string[]): void {
   if (command === 'import') {
     options(args, []);
     const { document, fingerprint: digest } = readDocument(resolve(idOrPath));
-    if (document.to.length && !document.to.includes(project)) throw new Error(`Recipient mismatch: this repo is ${project}; document is addressed to ${document.to.join(', ')}. Run handoff info in the receiving repo and use that exact identity in the sender's --to. For an existing alias-based exchange, use handoff init --project <alias>.`);
+    if (document.to.length && !document.to.includes(project)) throw new Error(`Recipient mismatch: this repo is ${project}; document is addressed to ${document.to.join(', ')}. Run sidepact info in the receiving repo and use that exact identity in the sender's --to. For an existing alias-based exchange, use sidepact init --project <alias>.`);
     const existing = store.get(document.id);
     if (existing) {
       if (existing.fingerprint !== digest) throw new Error('Same document ID has different content. Ask the sender to generate a new document.');

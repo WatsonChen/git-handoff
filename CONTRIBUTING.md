@@ -4,7 +4,7 @@ English and Traditional Chinese feedback are welcome.
 
 ## Report a problem
 
-Use the [issue templates](https://github.com/WatsonChen/git-handoff/issues/new/choose). Include Node/Git versions, operating system, command, comparison mode, and a minimal example of expected versus actual behavior. Remove private details before posting.
+Use the [issue templates](https://github.com/WatsonChen/sidepact/issues/new/choose). Include Node/Git versions, operating system, command, comparison mode, and a minimal example of expected versus actual behavior. Remove private details before posting.
 
 ## Propose a feature
 
@@ -18,7 +18,7 @@ Requires Git and Node.js 22.18+.
 npm ci
 npm run check
 npm test
-node bin/handoff.js --help
+node bin/sidepact.js --help
 ```
 
 `src/cli.ts` handles commands, `src/document.ts` handles the shared data model and Markdown, and `src/store.ts` handles local records. `src/identity.ts` normalizes hosted remote identities without network calls. `test/cli.test.js` uses temporary Git repositories, including frontend/backend round trips. Do not use real project repositories as destructive test fixtures.

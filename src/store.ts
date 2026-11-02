@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync, renameSync, readdirSync, statSy
 import { resolve } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { parseDocument, validate, validId, overall, type Handoff, type Task } from './document.ts';
+import { stateDirectory } from './paths.ts';
 
 export interface RecordEntry {
   version: 1;
@@ -30,7 +31,7 @@ export function fingerprint(document: Handoff): string {
 }
 export class Store {
   directory: string;
-  constructor(root: string) { this.directory = resolve(root, '.git-handoff', 'records'); }
+  constructor(root: string) { this.directory = resolve(stateDirectory(root), 'records'); }
   path(id: string): string {
     if (!validId(id)) throw new Error(`Invalid handoff ID: ${id}`);
     return resolve(this.directory, `${id}.json`);

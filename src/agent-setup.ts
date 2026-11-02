@@ -1,18 +1,19 @@
 import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { stateDirectory } from './paths.ts';
 
-const begin = '<!-- git-handoff:begin -->';
-const end = '<!-- git-handoff:end -->';
+const begin = '<!-- sidepact:begin -->';
+const end = '<!-- sidepact:end -->';
 export const agents = ['auto', 'generic', 'codex', 'claude', 'copilot'] as const;
 export type Agent = typeof agents[number];
 
 // Self-contained instructions: no network lookup or globally installed skill is required.
 export const instructions = `${begin}
-## git-handoff: cross-repository review / 跨端交接檢查
+## sidepact: cross-repository review / 跨端交接檢查
 
 At the end of a coding task, check cross-repository dependencies as part of your normal review.
-Follow the user's request and the project's existing rules. git-handoff is a bridge between
+Follow the user's request and the project's existing rules. sidepact is a bridge between
 frontend, backend, mobile, and other agents; it does not infer requirements or wake other agents.
 
 ### Review
@@ -28,8 +29,8 @@ frontend, backend, mobile, and other agents; it does not infer requirements or w
 - **Needs confirmation / 待確認**: state the missing information and question; do not present a proposed contract as agreed.
 
 ### Generate when work or confirmation is needed
-- Run commands in the actual application repository, not the git-handoff tool clone.
-- Use \`handoff generate\` with one single-line \`--note\` per self-contained task. Start the note
+- Run commands in the actual application repository, not the sidepact tool clone.
+- Use \`sidepact generate\` with one single-line \`--note\` per self-contained task. Start the note
   with [required] or [needs-confirmation], then give behavior, file/line evidence, relevant
   endpoint/request/response/error fields, acceptance criteria, and remaining questions.
 - Select the real task comparison: default for uncommitted tracked changes, \`--staged\` for
@@ -43,11 +44,11 @@ frontend, backend, mobile, and other agents; it does not infer requirements or w
   do not claim a file was generated. Do not invent unrelated changes to make generation succeed.
 
 ### When receiving a handoff or reply
-- Import the user-provided file with \`handoff import <path>\`, then inspect \`handoff show <original-id>\`.
+- Import the user-provided file with \`sidepact import <path>\`, then inspect \`sidepact show <original-id>\`.
 - Verify requirements against this repository's actual code/contracts before implementing.
-- Preserve task IDs/text. Use \`handoff update <id> --task TASK-001 --status <state> --note <result>\`.
+- Preserve task IDs/text. Use \`sidepact update <id> --task TASK-001 --status <state> --note <result>\`.
   Mark done only after appropriate verification; use blocked or needs-clarification when needed.
-- Produce \`handoff reply <original-id> --note <actual behavior, verification, and follow-up>\`.
+- Produce \`sidepact reply <original-id> --note <actual behavior, verification, and follow-up>\`.
   Keep actual results separate from assumptions. Never claim tests or delivery that did not occur.
 - Files are local, immutable snapshots. The user sends them manually; no push hook, remote
   notification, automatic delivery, or cross-agent execution is installed by this rule.
@@ -79,10 +80,18 @@ function readSafe(root: string, path: string): string {
   catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return ''; throw error; }
 }
 function ownedRange(text: string): [number, number] | undefined {
+  const legacyBegin = '<!-- git-handoff:begin -->';
+  const legacyEnd = '<!-- git-handoff:end -->';
+  if (text.includes(legacyBegin) || text.includes(legacyEnd)) {
+    if (text.includes(begin) || text.includes(end)) throw new Error('Both legacy and Sidepact instruction blocks exist. Existing instructions were not changed.');
+    const start = text.indexOf(legacyBegin), finish = text.indexOf(legacyEnd);
+    if (start === -1 || finish < start || text.indexOf(legacyBegin, start + legacyBegin.length) !== -1 || text.indexOf(legacyEnd, finish + legacyEnd.length) !== -1) throw new Error('Malformed or duplicate legacy instruction markers. Existing instructions were not changed.');
+    return [start, finish + legacyEnd.length];
+  }
   const start = text.indexOf(begin), finish = text.indexOf(end);
   if (start === -1 && finish === -1) return;
   if (start === -1 || finish < start || text.indexOf(begin, start + begin.length) !== -1 || text.indexOf(end, finish + end.length) !== -1) {
-    throw new Error('Malformed or duplicate git-handoff markers. Existing instructions were not changed.');
+    throw new Error('Malformed or duplicate sidepact markers. Existing instructions were not changed.');
   }
   return [start, finish + end.length];
 }
@@ -106,7 +115,7 @@ export function agentSetup(root: string, action: 'enable' | 'disable' | 'agent-s
   }
   if (next === original) { console.log(`Already enabled / 已啟用: ${path}`); return; }
   if (original) {
-    const backupRoot = resolve(root, '.git-handoff', 'instruction-backups');
+    const backupRoot = resolve(stateDirectory(root), 'instruction-backups');
     // Apply the same containment check to backup paths before writing.
     readSafe(root, resolve(backupRoot, '__path_check__'));
     mkdirSync(backupRoot, { recursive: true });

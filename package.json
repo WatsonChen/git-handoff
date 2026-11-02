@@ -1,10 +1,10 @@
 {
-  "name": "git-handoff",
-  "version": "0.3.0",
+  "name": "sidepact",
+  "version": "0.4.0",
   "description": "A Markdown handoff bridge for frontend, backend, and cross-platform AI agents",
   "type": "module",
   "bin": {
-    "handoff": "bin/handoff.js"
+    "sidepact": "bin/sidepact.js"
   },
   "files": [
     "bin",
@@ -28,23 +28,23 @@
     "typescript": "^5.9.0"
   },
   "keywords": [
-    "git",
-    "git-diff",
-    "handoff",
-    "markdown",
-    "cli",
-    "developer-tools",
-    "multi-repo",
+    "sidepact",
+    "ai-agents",
+    "agent-handoff",
+    "cross-repository",
     "frontend",
     "backend",
-    "todo"
+    "markdown",
+    "cli",
+    "git",
+    "developer-tools"
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/WatsonChen/git-handoff.git"
+    "url": "git+https://github.com/WatsonChen/sidepact.git"
   },
-  "homepage": "https://github.com/WatsonChen/git-handoff#readme",
+  "homepage": "https://github.com/WatsonChen/sidepact#readme",
   "bugs": {
-    "url": "https://github.com/WatsonChen/git-handoff/issues"
+    "url": "https://github.com/WatsonChen/sidepact/issues"
   }
 }

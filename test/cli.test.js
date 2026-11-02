@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const cli = fileURLToPath(new URL('../bin/handoff.js', import.meta.url));
+const cli = fileURLToPath(new URL('../bin/sidepact.js', import.meta.url));
 function fixture(t) {
   const cwd = mkdtempSync(join(tmpdir(), 'handoff-test-'));
   t.after(() => rmSync(cwd, { recursive: true, force: true }));
@@ -62,7 +62,7 @@ test('init, config defaults, clean tree and invalid arguments', t => {
   assert.equal(run('generate', '--to', 'api').status, 1);
   assert.equal(run('generate', '--to').status, 1);
   assert.equal(run('generate', '--base', 'main', '--staged', '--to', 'api').status, 1);
-  writeFileSync(join(cwd, 'handoff.config.json'), JSON.stringify({ project: 'web', targets: ['api'] }));
+  writeFileSync(join(cwd, 'sidepact.config.json'), JSON.stringify({ project: 'web', targets: ['api'] }));
   writeFileSync(join(cwd, 'api.ts'), '// changed\n');
   assert.equal(run('generate', '--output', 'out.md').status, 0);
   assert.match(readFileSync(join(cwd, 'out.md'), 'utf8'), /from: "web"/);
@@ -82,7 +82,7 @@ function generated(t, recipients = ['shop-api']) {
 import { parseDocument } from '../src/document.ts';
 import { existsSync, mkdirSync } from 'node:fs';
 function state(repo, id) {
-  return JSON.parse(readFileSync(join(repo.cwd, '.git-handoff', 'records', `${id}.json`), 'utf8'));
+  return JSON.parse(readFileSync(join(repo.cwd, '.sidepact', 'records', `${id}.json`), 'utf8'));
 }
 function writeDocument(path, document) { writeFileSync(path, JSON.stringify(document)); }
 
@@ -142,8 +142,8 @@ test('reject malformed, conflicting, wrong-recipient and unsupported documents w
   const backend = fixture(t);
   backend.run('init', '--project', 'wrong-project');
   assert.match(backend.run('import', output).stderr, /Recipient mismatch/);
-  assert.equal(existsSync(join(backend.cwd, '.git-handoff')), false);
-  writeFileSync(join(backend.cwd, 'handoff.config.json'), '{"project":"shop-api"}');
+  assert.equal(existsSync(join(backend.cwd, '.sidepact')), false);
+  writeFileSync(join(backend.cwd, 'sidepact.config.json'), '{"project":"shop-api"}');
   assert.equal(backend.run('import', output).status, 0);
   const path = join(backend.cwd, 'bad.json');
   const invalid = [
@@ -234,7 +234,7 @@ test('generated documents and local state are excluded even if tracked', t => {
   mkdirSync(folder, { recursive: true });
   writeFileSync(join(folder, '改動.md'), 'old document\n');
   frontend.git('add', '.'); frontend.git('commit', '-qm', 'track existing state');
-  const record = join(frontend.cwd, '.git-handoff', 'records', `${document.id}.json`);
+  const record = join(frontend.cwd, '.sidepact', 'records', `${document.id}.json`);
   writeFileSync(record, readFileSync(record, 'utf8') + '\n');
   writeFileSync(join(folder, '改動.md'), '// TODO: should not be extracted\n');
   assert.match(frontend.run('generate', '--to', 'api').stderr, /No changes/);
@@ -305,13 +305,13 @@ test('source identity is automatic with or without init, including from a subdir
   assert.equal(info.status, 0, info.stderr);
   assert.match(info.stdout, /Example\/shop-web/);
   assert.doesNotMatch(info.stdout, /secret|user:/);
-  assert.equal(existsSync(join(repo.cwd, 'handoff.config.json')), false);
+  assert.equal(existsSync(join(repo.cwd, 'sidepact.config.json')), false);
   writeFileSync(join(repo.cwd, 'api.ts'), '// TODO: verify endpoint\n');
   const output = join(repo.cwd, 'without-init.md');
   assert.equal(repo.run('generate', '--to', 'Example/shop-api', '--output', output).status, 0);
   assert.equal(parseDocument(readFileSync(output, 'utf8')).from, 'Example/shop-web');
   assert.equal(repo.run('init', '--to', 'Example/shop-api', '--to', 'Example/mobile', '--lang', 'en').status, 0);
-  const config = JSON.parse(readFileSync(join(repo.cwd, 'handoff.config.json'), 'utf8'));
+  const config = JSON.parse(readFileSync(join(repo.cwd, 'sidepact.config.json'), 'utf8'));
   assert.equal(config.project, undefined);
   assert.deepEqual(config.targets, ['Example/shop-api', 'Example/mobile']);
   mkdirSync(join(repo.cwd, 'nested'));
@@ -326,7 +326,7 @@ test('repeat init preserves unspecified settings; explicit aliases survive until
   const repo = fixture(t);
   repo.git('remote', 'add', 'origin', 'git@github.com:Example/web.git');
   repo.run('init', '--project', 'legacy-web', '--to', 'legacy-api', '--lang', 'en');
-  const path = join(repo.cwd, 'handoff.config.json');
+  const path = join(repo.cwd, 'sidepact.config.json');
   const before = JSON.parse(readFileSync(path, 'utf8'));
   before.output = 'custom-handoffs';
   writeFileSync(path, JSON.stringify(before));
@@ -400,8 +400,8 @@ test('open handoffs complete a round trip without init or specifying either reci
   assert.equal(front.run('import', replyPath).status, 0);
   assert.equal(state(front, document.id).responses[0].from, 'OtherTeam/backend');
   assert.equal(state(front, document.id).responses[0].status, 'completed');
-  assert.equal(existsSync(join(front.cwd, 'handoff.config.json')), false);
-  assert.equal(existsSync(join(back.cwd, 'handoff.config.json')), false);
+  assert.equal(existsSync(join(front.cwd, 'sidepact.config.json')), false);
+  assert.equal(existsSync(join(back.cwd, 'sidepact.config.json')), false);
 });
 
 test('open handoffs accept multiple receivers independently and bind local work to the importing identity', t => {
@@ -458,8 +458,8 @@ test('enable installs a one-time cross-repo review policy and is idempotent', t 
   assert.match(repo.run('agent-status').stdout, /Enabled/);
   assert.match(repo.run('enable').stdout, /Already enabled/);
   assert.equal(readFileSync(path, 'utf8'), policy);
-  assert.equal(existsSync(join(repo.cwd, '.git-handoff/instruction-backups')), false);
-  assert.equal(existsSync(join(repo.cwd, 'handoff.config.json')), false);
+  assert.equal(existsSync(join(repo.cwd, '.sidepact/instruction-backups')), false);
+  assert.equal(existsSync(join(repo.cwd, 'sidepact.config.json')), false);
 });
 
 test('enable preserves existing rules, backs them up, and disable restores them exactly', t => {
@@ -470,7 +470,7 @@ test('enable preserves existing rules, backs them up, and disable restores them 
   assert.equal(repo.run('enable').status, 0);
   const updated = readFileSync(path, 'utf8');
   assert.ok(updated.startsWith(original));
-  const folder = join(repo.cwd, '.git-handoff/instruction-backups');
+  const folder = join(repo.cwd, '.sidepact/instruction-backups');
   const backups = readdirSync(folder);
   assert.equal(backups.length, 1);
   assert.equal(readFileSync(join(folder, backups[0]), 'utf8'), original);
@@ -485,12 +485,12 @@ test('explicit adapters target Claude/Copilot files and respect Codex override p
   writeFileSync(join(repo.cwd, 'AGENTS.md'), '# Shared instructions\n');
   writeFileSync(join(repo.cwd, 'AGENTS.override.md'), '# Codex-specific instructions\n');
   assert.equal(repo.run('enable', '--agent', 'codex').status, 0);
-  assert.match(readFileSync(join(repo.cwd, 'AGENTS.override.md'), 'utf8'), /git-handoff:begin/);
+  assert.match(readFileSync(join(repo.cwd, 'AGENTS.override.md'), 'utf8'), /sidepact:begin/);
   assert.equal(readFileSync(join(repo.cwd, 'AGENTS.md'), 'utf8'), '# Shared instructions\n');
   assert.equal(repo.run('enable', '--agent', 'claude').status, 0);
-  assert.match(readFileSync(join(repo.cwd, 'CLAUDE.md'), 'utf8'), /git-handoff:begin/);
+  assert.match(readFileSync(join(repo.cwd, 'CLAUDE.md'), 'utf8'), /sidepact:begin/);
   assert.equal(repo.run('enable', '--agent', 'copilot').status, 0);
-  assert.match(readFileSync(join(repo.cwd, '.github/copilot-instructions.md'), 'utf8'), /git-handoff:begin/);
+  assert.match(readFileSync(join(repo.cwd, '.github/copilot-instructions.md'), 'utf8'), /sidepact:begin/);
   assert.match(repo.run('agent-status', '--agent', 'copilot').stdout, /Enabled/);
   assert.equal(repo.run('enable', '--agent', 'unknown').status, 1);
 });
@@ -506,13 +506,13 @@ test('auto setup reuses existing agent files and removes only its managed block'
   const remaining = readFileSync(path, 'utf8');
   assert.match(remaining, /Existing Claude policy/);
   assert.match(remaining, /Keep this rule/);
-  assert.doesNotMatch(remaining, /git-handoff:begin/);
+  assert.doesNotMatch(remaining, /sidepact:begin/);
 });
 
 test('setup refuses malformed markers and symlink targets without changing unrelated files', t => {
   const repo = fixture(t);
   const path = join(repo.cwd, 'AGENTS.md');
-  const broken = '# Keep this\n<!-- git-handoff:begin -->\nunfinished';
+  const broken = '# Keep this\n<!-- sidepact:begin -->\nunfinished';
   writeFileSync(path, broken);
   assert.equal(repo.run('enable').status, 1);
   assert.equal(repo.run('disable').status, 1);
@@ -528,4 +528,65 @@ test('setup refuses malformed markers and symlink targets without changing unrel
   symlinkSync(outside.cwd, join(repo.cwd, '.github'));
   assert.equal(repo.run('enable', '--agent', 'copilot').status, 1);
   assert.equal(existsSync(join(outside.cwd, 'copilot-instructions.md')), false);
+});
+
+import { renameSync } from 'node:fs';
+
+test('Sidepact continues legacy config and history without creating a second store', t => {
+  const front = fixture(t), back = fixture(t);
+  writeFileSync(join(front.cwd, 'handoff.config.json'), JSON.stringify({ project: 'legacy-web', targets: ['legacy-api'], language: 'en' }));
+  writeFileSync(join(back.cwd, 'handoff.config.json'), JSON.stringify({ project: 'legacy-api' }));
+  writeFileSync(join(front.cwd, 'api.ts'), '// TODO: preserve this exchange\n');
+  const source = join(front.cwd, 'out.md');
+  assert.equal(front.run('generate', '--output', source).status, 0);
+  const document = parseDocument(readFileSync(source, 'utf8'));
+  assert.equal(document.from, 'legacy-web');
+  assert.deepEqual(document.to, ['legacy-api']);
+  renameSync(join(front.cwd, '.sidepact'), join(front.cwd, '.git-handoff'));
+  assert.equal(back.run('import', source).status, 0);
+  renameSync(join(back.cwd, '.sidepact'), join(back.cwd, '.git-handoff'));
+  assert.equal(back.run('update', document.id, '--task', 'TASK-001', '--status', 'done').status, 0);
+  const reply = join(back.cwd, 'reply.md');
+  assert.equal(back.run('reply', document.id, '--output', reply).status, 0);
+  assert.equal(front.run('import', reply).status, 0);
+  assert.match(front.run('show', document.id).stdout, /completed/);
+  assert.equal(front.run('init', '--lang', 'en').status, 0);
+  assert.equal(existsSync(join(front.cwd, 'sidepact.config.json')), false);
+  assert.equal(existsSync(join(front.cwd, '.sidepact')), false);
+  assert.equal(existsSync(join(back.cwd, '.sidepact')), false);
+});
+
+test('enable upgrades a legacy instruction block in place and preserves team rules', t => {
+  const repo = fixture(t);
+  const path = join(repo.cwd, 'AGENTS.md');
+  const original = '# Keep team rules\n\n<!-- git-handoff:begin -->\nUse handoff generate for cross-repo work.\n<!-- git-handoff:end -->\n';
+  writeFileSync(path, original);
+  mkdirSync(join(repo.cwd, '.git-handoff'));
+  assert.match(repo.run('agent-status').stdout, /Enabled/);
+  assert.equal(repo.run('enable').status, 0);
+  const current = readFileSync(path, 'utf8');
+  assert.match(current, /Keep team rules/);
+  assert.match(current, /sidepact:begin/);
+  assert.match(current, /sidepact generate/);
+  assert.doesNotMatch(current, /git-handoff:begin/);
+  assert.equal(existsSync(join(repo.cwd, '.sidepact')), false);
+  const backups = readdirSync(join(repo.cwd, '.git-handoff/instruction-backups'));
+  assert.equal(readFileSync(join(repo.cwd, '.git-handoff/instruction-backups', backups[0]), 'utf8'), original);
+});
+
+test('refuse ambiguous new/legacy history instead of silently losing an exchange', t => {
+  const repo = fixture(t);
+  mkdirSync(join(repo.cwd, '.sidepact'));
+  mkdirSync(join(repo.cwd, '.git-handoff'));
+  const result = repo.run('list');
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Both .sidepact and .git-handoff exist/);
+});
+
+test('package identity and CLI use Sidepact while document IDs and protocol remain stable', t => {
+  const repo = fixture(t);
+  assert.match(repo.run('--help').stdout, /^Sidepact/);
+  const pkg = JSON.parse(readFileSync(fileURLToPath(new URL('../package.json', import.meta.url)), 'utf8'));
+  assert.equal(pkg.name, 'sidepact');
+  assert.deepEqual(pkg.bin, { sidepact: 'bin/sidepact.js' });
 });

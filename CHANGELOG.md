@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0 — 2026-11-02
+
+### Rename to Sidepact
+
+- Rename the package, primary CLI, repository references, agent instructions, and bilingual documentation to Sidepact.
+- Use `sidepact` as the public CLI; new projects use `sidepact.config.json` and `.sidepact/`.
+- Continue reading existing `handoff.config.json` and `.git-handoff/` data without silently copying or replacing history.
+- Recognize legacy managed instruction markers and update them in place on `sidepact enable`.
+- Preserve document schema, handoff/task IDs, reply references, and output paths.
+- Add a migration guide and agent-focused package keywords.
+- The npm registry returned 404 for `sidepact` during the name check; this does not reserve the name. No npm publication was performed.
+
 ## 0.3.0 — 2026-10-30
 
 ### Agent handoff bridge

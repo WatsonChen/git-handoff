@@ -25,13 +25,13 @@ These values are suggestions; adding this file does not change GitHub repository
 **Description**
 
 ```text
-Turn Git diffs into Markdown handoff checklists for frontend, backend, and multi-repo teams. Local TypeScript CLI.
+Sidepact: Markdown handoffs between frontend, backend, and cross-platform AI coding agents.
 ```
 
 **Topics**
 
 ```text
-git git-diff markdown cli typescript developer-tools handoff multi-repo frontend backend
+sidepact ai-agents agent-handoff cross-repository frontend backend markdown cli typescript developer-tools
 ```
 
 Set these through the gear next to **About** on the repository home page. Topics help people browse related repositories. GitHub search supports the repository name, description, topics, and README through search qualifiers.

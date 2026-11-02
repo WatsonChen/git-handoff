@@ -16,23 +16,23 @@ Install the tool in its own folder: [English](../README.md#1-install-the-tool-on
 cd /path/to/frontend-project
 ```
 
-Run `handoff enable` once in this application repo and reload the agent instructions (or start a new session). No `init` or recipient setup is needed. The tool detects the source repository; the receiving repo takes on the handoff when importing. Use `handoff info` only to inspect identity.
+Run `sidepact enable` once in this application repo and reload the agent instructions (or start a new session). No `init` or recipient setup is needed. The tool detects the source repository; the receiving repo takes on the handoff when importing. Use `sidepact info` only to inspect identity.
 
-各端在自己的專案執行一次 `handoff enable`，再讓 agent 重新讀取指令。不用初始化或約定接收方名稱。前端產生檔案，後端在自己的 repo 匯入即可。
+各端在自己的專案執行一次 `sidepact enable`，再讓 agent 重新讀取指令。不用初始化或約定接收方名稱。前端產生檔案，後端在自己的 repo 匯入即可。
 
 ## Generate and send / 產生並傳送
 
 After making a real change, the agent or developer runs:
 
 ```bash
-handoff generate --note "需求、實際程式依據、API 欄位、驗收條件與待確認事項"
+sidepact generate --note "需求、實際程式依據、API 欄位、驗收條件與待確認事項"
 ```
 
 - For committed task changes, use `--base <actual-start-ref>`; for uncommitted tracked changes use the default; for staging only use `--staged`.
 - Stage new files first according to your workflow. A clean working tree has no default changes even after a successful push.
 - Read `handoffs/<id>/改動.md`. Compare files against `git diff HEAD`, `git diff --cached`, or `git diff <start>...HEAD`, matching the selected mode.
 - Check that tasks contain enough context for a backend agent without access to the frontend repo. TODOs alone are not the full analysis.
-- Send the `.md` file. Preserve frontend `.git-handoff/` records.
+- Send the `.md` file. Preserve frontend `.sidepact/` records.
 
 `<id>` means the actual original handoff ID printed by generation. Replace the full placeholder; do not type angle brackets literally.
 
@@ -42,16 +42,16 @@ Inside the backend project, **no init is required** for automatic source identit
 
 ```bash
 cd /path/to/backend-project
-handoff info
-handoff import /path/to/改動.md
-handoff show <id>
+sidepact info
+sidepact import /path/to/改動.md
+sidepact show <id>
 ```
 
 Implement and verify the agreed work. Update each original task explicitly:
 
 ```bash
-handoff update <id> --task TASK-001 --status done --note "實際 API、欄位、錯誤格式與驗證結果"
-handoff reply <id> --note "前端需配合的變動與剩餘問題"
+sidepact update <id> --task TASK-001 --status done --note "實際 API、欄位、錯誤格式與驗證結果"
+sidepact reply <id> --note "前端需配合的變動與剩餘問題"
 ```
 
 Use `blocked` or `needs-clarification` if needed. The first explicit frontend note is `TASK-001`; use `show` for other IDs. Send `handoffs/<reply-id>/回覆.md` back. Replies identify HEAD but do not attach code diffs or include uncommitted work.
@@ -59,8 +59,8 @@ Use `blocked` or `needs-clarification` if needed. The first explicit frontend no
 ## Frontend reads the reply / 前端查看回覆
 
 ```bash
-handoff import /path/to/回覆.md
-handoff show <id>
+sidepact import /path/to/回覆.md
+sidepact show <id>
 ```
 
 Read the received response beneath the original handoff. The original snapshot stays unchanged; recipients' replies are separate.
@@ -74,7 +74,7 @@ Read the received response beneath the original handoff. The original snapshot s
 | Recipient mismatch | Only applies to explicitly targeted handoffs or saved targets. Open handoffs need no recipient setup. Do not edit received files. |
 | Old configured alias | Keep it during existing exchanges, or use `init --auto-project` for future exchanges and update recipient defaults accordingly. |
 | Already imported | Expected for duplicates. Local task progress is preserved. |
-| Unknown handoff | Check `list` in the right repo and preserve `.git-handoff/`. Import the original before replying. |
+| Unknown handoff | Check `list` in the right repo and preserve `.sidepact/`. Import the original before replying. |
 | File exists / EEXIST | Choose a new `--output` file; generated files are never overwritten. |
 | No meaningful tasks | The agent must analyze requirements and supply `--note`. CLI only extracts added-line TODOs, not semantic requirements. |
 | Reply rejected | Sender identity, original ID, and task IDs/texts must match the saved outgoing document. |
@@ -85,4 +85,4 @@ Read the received response beneath the original handoff. The original snapshot s
 
 Did the source identity match the right repo? Were the Git files and task evidence correct? Could the backend agent implement the task from the document? Did the reply make outcomes and questions clear?
 
-[Report an issue](https://github.com/WatsonChen/git-handoff/issues/new/choose) with sanitized commands and expected/actual output.
+[Report an issue](https://github.com/WatsonChen/sidepact/issues/new/choose) with sanitized commands and expected/actual output.

@@ -1,9 +1,9 @@
 # One-time agent activation / 一次性啟用 agent
 
-Install git-handoff once per computer, then run this in **each actual application repo**:
+Install sidepact once per computer, then run this in **each actual application repo**:
 
 ```bash
-handoff enable
+sidepact enable
 ```
 
 工具每台電腦裝一次；啟用則在各個實際前端、後端或 App 專案執行一次。這會加入專案指引，**不會設定接收方、不安裝 push hook、不啟動另一個 agent**。
@@ -25,11 +25,11 @@ Agent judgment is not deterministic. These are project instructions, not a code-
 ## Choose the instruction file
 
 ```bash
-handoff enable                     # auto: reuse an existing root instruction file
-handoff enable --agent codex       # AGENTS.override.md if present, otherwise AGENTS.md
-handoff enable --agent claude      # CLAUDE.md
-handoff enable --agent copilot     # .github/copilot-instructions.md
-handoff enable --agent generic     # AGENTS.md
+sidepact enable                     # auto: reuse an existing root instruction file
+sidepact enable --agent codex       # AGENTS.override.md if present, otherwise AGENTS.md
+sidepact enable --agent claude      # CLAUDE.md
+sidepact enable --agent copilot     # .github/copilot-instructions.md
+sidepact enable --agent generic     # AGENTS.md
 ```
 
 Auto checks these paths in order: `AGENTS.override.md`, `AGENTS.md`, `CLAUDE.md`, `.github/copilot-instructions.md`. If none exists, it creates `AGENTS.md`. If you use a different client than the selected file targets, choose it explicitly. Multiple clients can each be enabled separately.
@@ -39,10 +39,10 @@ Auto checks these paths in order: `AGENTS.override.md`, `AGENTS.md`, `CLAUDE.md`
 ## Verify and remove
 
 ```bash
-handoff agent-status
-handoff agent-status --agent claude
-handoff disable
-handoff disable --agent claude
+sidepact agent-status
+sidepact agent-status --agent claude
+sidepact disable
+sidepact disable --agent claude
 ```
 
 Use the same adapter when checking/removing an explicitly selected installation. Status checks that the managed block exists; it cannot prove an agent has loaded it. Start a new session or ask the current agent to read the displayed instruction path. Clients may not apply changed instructions retroactively to running tasks.
@@ -51,14 +51,14 @@ Use the same adapter when checking/removing an explicitly selected installation.
 
 ## Preservation and backups
 
-- Existing project instructions are preserved outside the `git-handoff:begin` / `git-handoff:end` block.
+- Existing project instructions are preserved outside the `sidepact:begin` / `sidepact:end` block.
 - Repeated enable updates only that block and is a no-op when already current.
-- Before changing a nonempty file, the old file is backed up under `.git-handoff/instruction-backups/`.
+- Before changing a nonempty file, the old file is backed up under `.sidepact/instruction-backups/`.
 - Malformed/duplicate markers and symlink instruction paths are rejected rather than overwritten.
 - Enabling does not stage, commit, push, or edit your handoff config. Review and commit the instruction file yourself if you want teammates to inherit it.
 - No user-level/global instruction files are modified.
 
-既有指令不會被整份覆蓋。可用版本控制檢查修改；備份在本機 `.git-handoff/`，不是要傳給另一端的交接文件。
+既有指令不會被整份覆蓋。可用版本控制檢查修改；備份在本機 `.sidepact/`，不是要傳給另一端的交接文件。
 
 ## Where to find the Markdown
 

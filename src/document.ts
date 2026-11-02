@@ -58,7 +58,7 @@ export function parseDocument(raw: string): Handoff {
   if (raw.trimStart().startsWith('{')) return validate(JSON.parse(raw));
   const text = raw.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
   const front = text.match(/^---\n([\s\S]*?)\n---(?:\n|$)/);
-  if (!front) throw new Error('Missing git-handoff front matter.');
+  if (!front) throw new Error('Missing Sidepact front matter.');
   const data: Record<string, unknown> = Object.create(null);
   for (const row of front[1].split('\n')) {
     if (!row.trim()) continue;
@@ -108,6 +108,6 @@ export function render(d: Handoff): string {
     `## ${en ? 'Source and editing' : '來源與編輯方式'}`, '',
     en ? '- Tasks come from explicit notes and TODO/FIXME markers in added diff lines; they are not a complete task inventory.' : '- 待辦來自明確備註及差異新增行的 TODO/FIXME，不是完整專案待辦清單。',
     en ? '- source_commit identifies HEAD, not uncommitted work. Reply files do not automatically include backend diffs.' : '- source_commit 標示 HEAD，不含未提交內容；回覆不會自動附上後端 diff。',
-    en ? '- Front matter is machine-readable. Use handoff update/reply to change task status; do not edit generated files by hand.' : '- 工具讀取檔頭資料。請用 handoff update/reply 更新狀態，不要手動修改產出的文件。', '',
+    en ? '- Front matter is machine-readable. Use sidepact update/reply to change task status; do not edit generated files by hand.' : '- 工具讀取檔頭資料。請用 sidepact update/reply 更新狀態，不要手動修改產出的文件。', '',
   ].join('\n');
 }
